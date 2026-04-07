@@ -1,0 +1,48 @@
+# Build outputs
+/out/
+/build/
+/bin/
+/obj/
+
+# CMake
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+_deps/
+
+# Ninja
+.ninja_deps
+.ninja_log
+build.ninja
+
+# Visual Studio
+/.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+
+# MSVC / linker outputs
+*.obj
+*.ipdb
+*.iobj
+*.pdb
+*.ilk
+*.idb
+*.tlog
+*.lastbuildstate
+
+# Executables and libraries
+*.exe
+*.dll
+*.lib
+*.exp
+
+# Logs
+*.log
