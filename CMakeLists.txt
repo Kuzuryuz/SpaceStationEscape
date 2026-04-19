@@ -31,10 +31,28 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    assimp
+    GIT_REPOSITORY https://github.com/assimp/assimp.git
+    GIT_TAG v5.2.5
+)
+FetchContent_MakeAvailable(assimp)
+
 add_executable(SpaceStationEscape
     src/main.cpp
     "src/graphics/Shader.cpp"
+    "src/graphics/Texture.cpp"
+    "src/graphics/AnimatedCharacter.cpp"
     "src/world/World.cpp"
+    "src/graphics/Texture.h"
+    "src/graphics/AnimatedCharacter.h"
     "src/GameState.h")
 
 target_include_directories(SpaceStationEscape PRIVATE
@@ -49,4 +67,6 @@ target_link_libraries(SpaceStationEscape PRIVATE
     glfw
     glad
     glm
+    assimp
+    windowscodecs
 )

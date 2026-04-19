@@ -11,6 +11,7 @@
 #include <array>
 #include <vector>
 
+#include "graphics/AnimatedCharacter.h"
 #include "graphics/Shader.h"
 #include "world/World.h"
 #include "GameState.h"
@@ -39,6 +40,7 @@ float lastMouseY = SCR_HEIGHT * 0.5f;
 bool ePressedLastFrame = false;
 bool showInteractPrompt = false;
 int nearestInteractableIndex = -1;
+bool playerIsMoving = false;
 
 World world;
 GameState gameState;
@@ -136,7 +138,10 @@ void processInput(GLFWwindow* window)
         glfwSetWindowShouldClose(window, true);
 
     if (gameState.gameFinished)
+    {
+        playerIsMoving = false;
         return;
+    }
 
     float moveAmount = playerSpeed * deltaTime;
     glm::vec3 forward = getCameraForwardXZ();
@@ -155,9 +160,14 @@ void processInput(GLFWwindow* window)
 
     if (glm::length(moveDelta) > 0.0f)
     {
+        playerIsMoving = true;
         moveDelta = glm::normalize(moveDelta) * moveAmount;
         tryMovePlayer(moveDelta);
         playerYaw = glm::degrees(std::atan2(-moveDelta.z, moveDelta.x));
+    }
+    else
+    {
+        playerIsMoving = false;
     }
 }
 
@@ -723,10 +733,25 @@ int main()
         std::string(PROJECT_ROOT) + "/shaders/basic.fs"
     );
 
+    Shader characterShader(
+        std::string(PROJECT_ROOT) + "/shaders/character.vs",
+        std::string(PROJECT_ROOT) + "/shaders/character.fs"
+    );
+
     Shader hudShader(
         std::string(PROJECT_ROOT) + "/shaders/hud.vs",
         std::string(PROJECT_ROOT) + "/shaders/hud.fs"
     );
+
+    AnimatedCharacter playerCharacter(
+        std::string(PROJECT_ROOT) + "/assets/models/character/astronaut/source/astronaut.fbx",
+        std::string(PROJECT_ROOT) + "/assets/models/character/astronaut/textures/AstronautColor.png"
+    );
+
+    if (!playerCharacter.isLoaded())
+    {
+        std::cerr << "Player character failed to load: " << playerCharacter.getError() << "\n";
+    }
 
     float vertices[] = {
         -0.5f, -0.5f, -0.5f,
@@ -832,6 +857,7 @@ int main()
         lastFrame = currentFrame;
 
         processInput(window);
+        playerCharacter.update(deltaTime, playerIsMoving);
         updateInteractPrompt();
         handleInteraction(window);
         updateStoryEvents();
@@ -979,24 +1005,31 @@ int main()
             }
         }
 
-        drawCube(
-            playerPos + glm::vec3(0.0f, 0.25f, 0.0f),
-            glm::vec3(0.6f, 1.0f, 0.6f),
-            glm::vec3(0.9f, 0.9f, 0.95f),
-            playerYaw
-        );
+        if (playerCharacter.isLoaded())
+        {
+            playerCharacter.draw(characterShader, view, projection, playerPos, playerYaw);
+        }
+        else
+        {
+            drawCube(
+                playerPos + glm::vec3(0.0f, 0.25f, 0.0f),
+                glm::vec3(0.6f, 1.0f, 0.6f),
+                glm::vec3(0.9f, 0.9f, 0.95f),
+                playerYaw
+            );
 
-        glm::mat4 playerRot = glm::rotate(glm::mat4(1.0f), glm::radians(playerYaw), glm::vec3(0.0f, 1.0f, 0.0f));
-        glm::vec3 localMarkerOffset(0.45f, 0.7f, 0.0f);
-        glm::vec3 rotatedOffset = glm::vec3(playerRot * glm::vec4(localMarkerOffset, 0.0f));
-        glm::vec3 markerPos = playerPos + rotatedOffset;
+            glm::mat4 playerRot = glm::rotate(glm::mat4(1.0f), glm::radians(playerYaw), glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::vec3 localMarkerOffset(0.45f, 0.7f, 0.0f);
+            glm::vec3 rotatedOffset = glm::vec3(playerRot * glm::vec4(localMarkerOffset, 0.0f));
+            glm::vec3 markerPos = playerPos + rotatedOffset;
 
-        drawCube(
-            markerPos,
-            glm::vec3(0.18f, 0.18f, 0.18f),
-            glm::vec3(1.0f, 0.3f, 0.3f),
-            playerYaw
-        );
+            drawCube(
+                markerPos,
+                glm::vec3(0.18f, 0.18f, 0.18f),
+                glm::vec3(1.0f, 0.3f, 0.3f),
+                playerYaw
+            );
+        }
 
         glDisable(GL_DEPTH_TEST);
         drawProgressAndObjective(gameState, hudShader, quadVAO);
