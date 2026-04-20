@@ -3,12 +3,7 @@
 #include "Shader.h"
 #include "Texture.h"
 
-#include <assimp/Importer.hpp>
-#include <assimp/matrix4x4.h>
 #include <assimp/postprocess.h>
-#include <assimp/quaternion.h>
-#include <assimp/scene.h>
-#include <assimp/vector3.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
@@ -16,32 +11,53 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <numeric>
 #include <stdexcept>
 
 namespace
 {
-    const aiAnimation* findAnimationByName(const aiScene* scene, const std::string& wantedName)
-    {
-        if (!scene)
-            return nullptr;
-
-        for (unsigned int i = 0; i < scene->mNumAnimations; ++i)
-        {
-            const aiAnimation* animation = scene->mAnimations[i];
-            if (animation && wantedName == animation->mName.C_Str())
-                return animation;
-        }
-
-        return scene->mNumAnimations > 0 ? scene->mAnimations[0] : nullptr;
-    }
+    constexpr unsigned int kAssimpFlags =
+        aiProcess_Triangulate |
+        aiProcess_JoinIdenticalVertices |
+        aiProcess_GenSmoothNormals |
+        aiProcess_LimitBoneWeights |
+        aiProcess_ImproveCacheLocality |
+        aiProcess_FlipUVs;
 }
 
-AnimatedCharacter::AnimatedCharacter(const std::string& modelPath, const std::string& texturePath)
+AnimatedCharacter::AnimatedCharacter(const std::string& modelPath, const std::string& texturePath, bool shouldLoop)
+    : looping(shouldLoop)
 {
     try
     {
-        loadModel(modelPath, texturePath);
+        loadModel(modelPath, std::string(), texturePath);
+        clipTimeSeconds = 0.0;
+        finished = false;
+        updateAnimationPose();
+        loaded = true;
+    }
+    catch (const std::exception& ex)
+    {
+        loadError = ex.what();
+        std::cerr << "AnimatedCharacter load failed: " << loadError << "\n";
+    }
+}
+
+AnimatedCharacter::AnimatedCharacter(
+    const std::string& modelPath,
+    const std::string& animationPath,
+    const std::string& texturePath,
+    bool shouldLoop)
+    : looping(shouldLoop)
+{
+    try
+    {
+        loadModel(modelPath, animationPath, texturePath);
+        clipTimeSeconds = 0.0;
+        finished = false;
+        updateAnimationPose();
+        loaded = true;
     }
     catch (const std::exception& ex)
     {
@@ -60,19 +76,25 @@ AnimatedCharacter::~AnimatedCharacter()
         glDeleteVertexArrays(1, &vao);
 }
 
-void AnimatedCharacter::update(float deltaSeconds, bool isWalking)
+void AnimatedCharacter::update(float deltaSeconds, bool restart)
 {
-    if (!loaded || !scene)
+    if (!loaded || !animationScene || !animation)
         return;
 
-    if (walking != isWalking)
+    if (restart)
     {
-        walking = isWalking;
         clipTimeSeconds = 0.0;
+        finished = false;
     }
-    else
+    else if (!finished)
     {
         clipTimeSeconds += deltaSeconds;
+
+        if (!looping && clipTimeSeconds >= getAnimationDurationSeconds())
+        {
+            clipTimeSeconds = getAnimationDurationSeconds();
+            finished = true;
+        }
     }
 
     updateAnimationPose();
@@ -89,12 +111,14 @@ void AnimatedCharacter::draw(
         return;
 
     glm::mat4 model = glm::mat4(1.0f);
-    float userScale = 3.0f;
-    model = glm::translate(model, worldPosition + glm::vec3(0.0f, -0.25f, 0.0f));
+    const float userScale = 3.0f;
+
+    model = glm::translate(model, worldPosition);
     model = glm::rotate(model, glm::radians(worldYawDegrees + 90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     model = glm::translate(model, -fittedBasePivot);
     model = glm::scale(model, glm::vec3(fittedScale * userScale));
+
     shader.use();
     shader.setMat4("model", model);
     shader.setMat4("view", view);
@@ -111,31 +135,76 @@ void AnimatedCharacter::draw(
     glBindVertexArray(0);
 }
 
-void AnimatedCharacter::loadModel(const std::string& modelPath, const std::string& texturePath)
+void AnimatedCharacter::loadModel(
+    const std::string& modelPath,
+    const std::string& animationPath,
+    const std::string& texturePath)
 {
-    importer = std::make_unique<Assimp::Importer>();
-    scene = importer->ReadFile(
-        modelPath,
-        aiProcess_Triangulate |
-        aiProcess_JoinIdenticalVertices |
-        aiProcess_GenSmoothNormals |
-        aiProcess_LimitBoneWeights |
-        aiProcess_ImproveCacheLocality |
-        aiProcess_FlipUVs);
+    modelImporter = std::make_unique<Assimp::Importer>();
+    modelScene = modelImporter->ReadFile(modelPath, kAssimpFlags);
 
-    if (!scene || !scene->mRootNode || scene->mNumMeshes == 0)
-        throw std::runtime_error("Failed to load FBX scene: " + std::string(importer->GetErrorString()));
+    if (!modelScene || !modelScene->mRootNode || modelScene->mNumMeshes == 0)
+        throw std::runtime_error("Failed to load model scene: " + std::string(modelImporter->GetErrorString()));
 
-    glm::mat4 skeletonGlobalTransform(1.0f);
-    if (findNodeByName(scene->mRootNode, "Armature", glm::mat4(1.0f), skeletonGlobalTransform))
-        skeletonInverseTransform = glm::inverse(skeletonGlobalTransform);
+    if (animationPath.empty())
+    {
+        animationScene = modelScene;
+
+        if (modelScene->mNumAnimations == 0)
+            throw std::runtime_error("Animated character file has no embedded animation: " + modelPath);
+    }
     else
-        skeletonInverseTransform = glm::mat4(1.0f);
+    {
+        animationImporter = std::make_unique<Assimp::Importer>();
+        animationScene = animationImporter->ReadFile(animationPath, kAssimpFlags);
 
-    extractMesh(scene->mMeshes[0]);
+        if (!animationScene || !animationScene->mRootNode)
+            throw std::runtime_error("Failed to load animation scene: " + std::string(animationImporter->GetErrorString()));
+        if (animationScene->mNumAnimations == 0)
+            throw std::runtime_error("Animation file has no animation clip: " + animationPath);
+    }
+
+    animation = animationScene->mAnimations[animationScene->mNumAnimations - 1];
+
+    const unsigned int selectedAnimationIndex = animationScene->mNumAnimations - 1;
+
+    std::cout << "AnimatedCharacter source: " << modelPath;
+    if (!animationPath.empty())
+        std::cout << " | animation: " << animationPath;
+    std::cout << " | animations=" << animationScene->mNumAnimations
+        << " | selectedIndex=" << selectedAnimationIndex
+        << " | channels=" << animation->mNumChannels
+        << " | duration=" << animation->mDuration
+        << " | ticksPerSecond=" << animation->mTicksPerSecond
+        << "\n";
+
+    baseVertices.clear();
+    renderVertices.clear();
+    indices.clear();
+    boneMapping.clear();
+    boneInfos.clear();
+    finalBoneTransforms.clear();
+
+    bool foundSkinnedMesh = false;
+
+    for (unsigned int meshIndex = 0; meshIndex < modelScene->mNumMeshes; ++meshIndex)
+    {
+        aiMesh* mesh = modelScene->mMeshes[meshIndex];
+        if (!mesh || mesh->mNumVertices == 0)
+            continue;
+
+        if (mesh->mNumBones > 0)
+            foundSkinnedMesh = true;
+
+        extractMesh(mesh, static_cast<unsigned int>(baseVertices.size()));
+    }
+
+    if (!foundSkinnedMesh)
+        throw std::runtime_error("Model has no skinned mesh/bones: " + modelPath);
+
     normalizeVertexWeights();
-    renderVertices.resize(baseVertices.size());
 
+    renderVertices.resize(baseVertices.size());
     for (size_t i = 0; i < baseVertices.size(); ++i)
     {
         renderVertices[i].position = baseVertices[i].position;
@@ -143,56 +212,20 @@ void AnimatedCharacter::loadModel(const std::string& modelPath, const std::strin
         renderVertices[i].uv = baseVertices[i].uv;
     }
 
+    animationRootNode = animationScene->mRootNode;
+    if (!animationRootNode)
+        throw std::runtime_error("Animation scene has no root node.");
+
+    skeletonInverseTransform = glm::inverse(toGlm(animationRootNode->mTransformation));
+
     texture = std::make_unique<Texture>(texturePath);
     setupMesh();
-    updateAnimationPose();
-    loaded = true;
-}
 
-bool AnimatedCharacter::findNodeForMesh(const aiNode* node, unsigned int meshIndex, const glm::mat4& parentTransform, glm::mat4& outGlobalTransform) const
-{
-    if (!node)
-        return false;
-
-    const glm::mat4 currentTransform = parentTransform * toGlm(node->mTransformation);
-
-    for (unsigned int i = 0; i < node->mNumMeshes; ++i)
-    {
-        if (node->mMeshes[i] == meshIndex)
-        {
-            outGlobalTransform = currentTransform;
-            return true;
-        }
-    }
-
-    for (unsigned int i = 0; i < node->mNumChildren; ++i)
-    {
-        if (findNodeForMesh(node->mChildren[i], meshIndex, currentTransform, outGlobalTransform))
-            return true;
-    }
-
-    return false;
-}
-
-bool AnimatedCharacter::findNodeByName(const aiNode* node, const std::string& nodeName, const glm::mat4& parentTransform, glm::mat4& outGlobalTransform) const
-{
-    if (!node)
-        return false;
-
-    const glm::mat4 currentTransform = parentTransform * toGlm(node->mTransformation);
-    if (nodeName == node->mName.C_Str())
-    {
-        outGlobalTransform = currentTransform;
-        return true;
-    }
-
-    for (unsigned int i = 0; i < node->mNumChildren; ++i)
-    {
-        if (findNodeByName(node->mChildren[i], nodeName, currentTransform, outGlobalTransform))
-            return true;
-    }
-
-    return false;
+    std::cout << "AnimatedCharacter loaded. Model meshes=" << modelScene->mNumMeshes
+        << ", bones=" << boneInfos.size()
+        << ", animation='" << animation->mName.C_Str() << "'"
+        << ", animation source=" << (animationPath.empty() ? "embedded" : animationPath)
+        << "\n";
 }
 
 void AnimatedCharacter::setupMesh()
@@ -219,45 +252,50 @@ void AnimatedCharacter::setupMesh()
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(RenderVertex), reinterpret_cast<void*>(offsetof(RenderVertex, position)));
     glEnableVertexAttribArray(0);
+
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(RenderVertex), reinterpret_cast<void*>(offsetof(RenderVertex, normal)));
     glEnableVertexAttribArray(1);
+
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(RenderVertex), reinterpret_cast<void*>(offsetof(RenderVertex, uv)));
     glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);
 }
 
-void AnimatedCharacter::extractMesh(aiMesh* mesh)
+void AnimatedCharacter::extractMesh(aiMesh* mesh, unsigned int baseVertex)
 {
     if (!mesh)
         throw std::runtime_error("Animated character mesh is missing");
 
-    baseVertices.resize(mesh->mNumVertices);
+    const size_t oldVertexCount = baseVertices.size();
+    baseVertices.resize(oldVertexCount + mesh->mNumVertices);
 
     for (unsigned int i = 0; i < mesh->mNumVertices; ++i)
     {
         Vertex vertex;
         vertex.position = toGlm(mesh->mVertices[i]);
+
         if (mesh->HasNormals())
             vertex.normal = glm::normalize(toGlm(mesh->mNormals[i]));
+
         if (mesh->HasTextureCoords(0))
             vertex.uv = glm::vec2(mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y);
-        baseVertices[i] = vertex;
+
+        baseVertices[oldVertexCount + i] = vertex;
     }
 
-    indices.clear();
-    indices.reserve(mesh->mNumFaces * 3);
+    indices.reserve(indices.size() + mesh->mNumFaces * 3);
     for (unsigned int i = 0; i < mesh->mNumFaces; ++i)
     {
         const aiFace& face = mesh->mFaces[i];
         for (unsigned int j = 0; j < face.mNumIndices; ++j)
-            indices.push_back(face.mIndices[j]);
+            indices.push_back(baseVertex + face.mIndices[j]);
     }
 
-    readBoneWeights(mesh);
+    readBoneWeights(mesh, baseVertex);
 }
 
-void AnimatedCharacter::readBoneWeights(aiMesh* mesh)
+void AnimatedCharacter::readBoneWeights(aiMesh* mesh, unsigned int baseVertex)
 {
     for (unsigned int boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex)
     {
@@ -266,6 +304,7 @@ void AnimatedCharacter::readBoneWeights(aiMesh* mesh)
 
         int mappedBoneIndex = 0;
         auto it = boneMapping.find(boneName);
+
         if (it == boneMapping.end())
         {
             mappedBoneIndex = static_cast<int>(boneInfos.size());
@@ -280,8 +319,10 @@ void AnimatedCharacter::readBoneWeights(aiMesh* mesh)
         for (unsigned int weightIndex = 0; weightIndex < bone->mNumWeights; ++weightIndex)
         {
             const aiVertexWeight& weight = bone->mWeights[weightIndex];
-            if (weight.mVertexId < baseVertices.size())
-                setVertexBoneData(baseVertices[weight.mVertexId], mappedBoneIndex, weight.mWeight);
+            const unsigned int vertexIndex = baseVertex + weight.mVertexId;
+
+            if (vertexIndex < baseVertices.size())
+                setVertexBoneData(baseVertices[vertexIndex], mappedBoneIndex, weight.mWeight);
         }
     }
 
@@ -290,23 +331,23 @@ void AnimatedCharacter::readBoneWeights(aiMesh* mesh)
 
 void AnimatedCharacter::updateAnimationPose()
 {
-    const aiAnimation* animation = findAnimationByName(scene, "Armature|ArmatureAction");
-    if (!animation)
+    if (!animation || !animationScene || !animationRootNode)
         return;
 
     const double ticksPerSecond = animation->mTicksPerSecond > 0.0 ? animation->mTicksPerSecond : 30.0;
-    const double clipStartSeconds = (walking ? walkClip.startFrame : idleClip.startFrame) / 30.0;
-    const double clipEndSeconds = (walking ? walkClip.endFrame : idleClip.endFrame) / 30.0;
-    const double clipDurationSeconds = std::max(clipEndSeconds - clipStartSeconds, 1.0 / 30.0);
-    const double localClipSeconds = std::fmod(clipTimeSeconds, clipDurationSeconds);
-    const double animationTimeTicks = (clipStartSeconds + localClipSeconds) * ticksPerSecond;
+    const double durationSeconds = getAnimationDurationSeconds();
+    const double localClipSeconds = looping
+        ? std::fmod(clipTimeSeconds, durationSeconds)
+        : std::min(clipTimeSeconds, durationSeconds);
 
-    readNodeHierarchy(animationTimeTicks, scene->mRootNode, glm::mat4(1.0f));
+    const double animationTimeTicks = localClipSeconds * ticksPerSecond;
+
+    std::fill(finalBoneTransforms.begin(), finalBoneTransforms.end(), glm::mat4(1.0f));
+    readNodeHierarchy(animationTimeTicks, animationRootNode, glm::mat4(1.0f));
 
     for (size_t i = 0; i < baseVertices.size(); ++i)
     {
         const Vertex& source = baseVertices[i];
-
         glm::vec4 skinnedPosition(0.0f);
         glm::vec3 skinnedNormal(0.0f);
 
@@ -327,6 +368,7 @@ void AnimatedCharacter::updateAnimationPose()
 
         if (glm::length(skinnedPosition) < 0.0001f)
             skinnedPosition = glm::vec4(source.position, 1.0f);
+
         if (glm::length(skinnedNormal) < 0.0001f)
             skinnedNormal = source.normal;
 
@@ -362,16 +404,15 @@ void AnimatedCharacter::updateFittedBounds()
     const glm::vec3 extents = maxBounds - minBounds;
     const glm::vec3 targetExtents(0.6f, 1.0f, 0.6f);
 
-    float scaleX = (extents.x > 0.0001f) ? targetExtents.x / extents.x : 1.0f;
-    float scaleY = (extents.y > 0.0001f) ? targetExtents.y / extents.y : 1.0f;
-    float scaleZ = (extents.z > 0.0001f) ? targetExtents.z / extents.z : 1.0f;
+    const float scaleX = (extents.x > 0.0001f) ? targetExtents.x / extents.x : 1.0f;
+    const float scaleY = (extents.y > 0.0001f) ? targetExtents.y / extents.y : 1.0f;
+    const float scaleZ = (extents.z > 0.0001f) ? targetExtents.z / extents.z : 1.0f;
 
     fittedScale = std::min(scaleX, std::min(scaleY, scaleZ));
     fittedBasePivot = glm::vec3(
         (minBounds.x + maxBounds.x) * 0.5f,
         minBounds.y,
-        (minBounds.z + maxBounds.z) * 0.5f
-    );
+        (minBounds.z + maxBounds.z) * 0.5f);
 }
 
 void AnimatedCharacter::readNodeHierarchy(double animationTimeTicks, const aiNode* node, const glm::mat4& parentTransform)
@@ -379,22 +420,19 @@ void AnimatedCharacter::readNodeHierarchy(double animationTimeTicks, const aiNod
     if (!node)
         return;
 
-    const aiAnimation* animation = findAnimationByName(scene, "Armature|ArmatureAction");
     glm::mat4 nodeTransform = toGlm(node->mTransformation);
+    const aiNodeAnim* nodeAnim = findNodeAnim(animation, node->mName.C_Str());
 
-    if (animation)
+    if (nodeAnim)
     {
-        const aiNodeAnim* nodeAnim = findNodeAnim(animation, node->mName.C_Str());
-        if (nodeAnim)
-        {
-            const glm::vec3 scaling = interpolateScaling(animationTimeTicks, nodeAnim);
-            const glm::quat rotation = interpolateRotation(animationTimeTicks, nodeAnim);
-            const glm::vec3 translation = interpolatePosition(animationTimeTicks, nodeAnim);
+        const glm::vec3 scaling = interpolateScaling(animationTimeTicks, nodeAnim);
+        const glm::quat rotation = interpolateRotation(animationTimeTicks, nodeAnim);
+        const glm::vec3 translation = interpolatePosition(animationTimeTicks, nodeAnim);
 
-            nodeTransform = glm::translate(glm::mat4(1.0f), translation)
-                * glm::toMat4(rotation)
-                * glm::scale(glm::mat4(1.0f), scaling);
-        }
+        nodeTransform =
+            glm::translate(glm::mat4(1.0f), translation) *
+            glm::toMat4(rotation) *
+            glm::scale(glm::mat4(1.0f), scaling);
     }
 
     const glm::mat4 globalTransform = parentTransform * nodeTransform;
@@ -403,31 +441,43 @@ void AnimatedCharacter::readNodeHierarchy(double animationTimeTicks, const aiNod
     if (it != boneMapping.end())
     {
         const int boneIndex = it->second;
-        finalBoneTransforms[boneIndex] = skeletonInverseTransform * globalTransform * boneInfos[boneIndex].offset;
+        finalBoneTransforms[boneIndex] =
+            skeletonInverseTransform * globalTransform * boneInfos[boneIndex].offset;
     }
 
     for (unsigned int i = 0; i < node->mNumChildren; ++i)
         readNodeHierarchy(animationTimeTicks, node->mChildren[i], globalTransform);
 }
 
-const aiNodeAnim* AnimatedCharacter::findNodeAnim(const aiAnimation* animation, const std::string& nodeName) const
+const aiNodeAnim* AnimatedCharacter::findNodeAnim(const aiAnimation* anim, const std::string& nodeName) const
 {
-    if (!animation)
+    if (!anim)
         return nullptr;
 
-    for (unsigned int i = 0; i < animation->mNumChannels; ++i)
+    for (unsigned int i = 0; i < anim->mNumChannels; ++i)
     {
-        const aiNodeAnim* channel = animation->mChannels[i];
+        const aiNodeAnim* channel = anim->mChannels[i];
         if (channel && nodeName == channel->mNodeName.C_Str())
             return channel;
     }
+
     return nullptr;
+}
+
+double AnimatedCharacter::getAnimationDurationSeconds() const
+{
+    if (!animation)
+        return 1.0 / 30.0;
+
+    const double ticksPerSecond = animation->mTicksPerSecond > 0.0 ? animation->mTicksPerSecond : 30.0;
+    return std::max(animation->mDuration / ticksPerSecond, 1.0 / 30.0);
 }
 
 glm::vec3 AnimatedCharacter::interpolatePosition(double animationTimeTicks, const aiNodeAnim* nodeAnim) const
 {
     if (nodeAnim->mNumPositionKeys == 0)
         return glm::vec3(0.0f);
+
     if (nodeAnim->mNumPositionKeys == 1)
         return toGlm(nodeAnim->mPositionKeys[0].mValue);
 
@@ -435,11 +485,18 @@ glm::vec3 AnimatedCharacter::interpolatePosition(double animationTimeTicks, cons
     {
         const aiVectorKey& current = nodeAnim->mPositionKeys[i];
         const aiVectorKey& next = nodeAnim->mPositionKeys[i + 1];
+
         if (animationTimeTicks < next.mTime)
         {
             const double span = next.mTime - current.mTime;
-            const float factor = span > 0.0 ? static_cast<float>((animationTimeTicks - current.mTime) / span) : 0.0f;
-            return glm::mix(toGlm(current.mValue), toGlm(next.mValue), glm::clamp(factor, 0.0f, 1.0f));
+            const float factor = span > 0.0
+                ? static_cast<float>((animationTimeTicks - current.mTime) / span)
+                : 0.0f;
+
+            return glm::mix(
+                toGlm(current.mValue),
+                toGlm(next.mValue),
+                glm::clamp(factor, 0.0f, 1.0f));
         }
     }
 
@@ -450,6 +507,7 @@ glm::quat AnimatedCharacter::interpolateRotation(double animationTimeTicks, cons
 {
     if (nodeAnim->mNumRotationKeys == 0)
         return glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+
     if (nodeAnim->mNumRotationKeys == 1)
         return glm::normalize(toGlm(nodeAnim->mRotationKeys[0].mValue));
 
@@ -457,10 +515,14 @@ glm::quat AnimatedCharacter::interpolateRotation(double animationTimeTicks, cons
     {
         const aiQuatKey& current = nodeAnim->mRotationKeys[i];
         const aiQuatKey& next = nodeAnim->mRotationKeys[i + 1];
+
         if (animationTimeTicks < next.mTime)
         {
             const double span = next.mTime - current.mTime;
-            const float factor = span > 0.0 ? static_cast<float>((animationTimeTicks - current.mTime) / span) : 0.0f;
+            const float factor = span > 0.0
+                ? static_cast<float>((animationTimeTicks - current.mTime) / span)
+                : 0.0f;
+
             return glm::normalize(glm::slerp(
                 toGlm(current.mValue),
                 toGlm(next.mValue),
@@ -475,6 +537,7 @@ glm::vec3 AnimatedCharacter::interpolateScaling(double animationTimeTicks, const
 {
     if (nodeAnim->mNumScalingKeys == 0)
         return glm::vec3(1.0f);
+
     if (nodeAnim->mNumScalingKeys == 1)
         return toGlm(nodeAnim->mScalingKeys[0].mValue);
 
@@ -482,24 +545,106 @@ glm::vec3 AnimatedCharacter::interpolateScaling(double animationTimeTicks, const
     {
         const aiVectorKey& current = nodeAnim->mScalingKeys[i];
         const aiVectorKey& next = nodeAnim->mScalingKeys[i + 1];
+
         if (animationTimeTicks < next.mTime)
         {
             const double span = next.mTime - current.mTime;
-            const float factor = span > 0.0 ? static_cast<float>((animationTimeTicks - current.mTime) / span) : 0.0f;
-            return glm::mix(toGlm(current.mValue), toGlm(next.mValue), glm::clamp(factor, 0.0f, 1.0f));
+            const float factor = span > 0.0
+                ? static_cast<float>((animationTimeTicks - current.mTime) / span)
+                : 0.0f;
+
+            return glm::mix(
+                toGlm(current.mValue),
+                toGlm(next.mValue),
+                glm::clamp(factor, 0.0f, 1.0f));
         }
     }
 
     return toGlm(nodeAnim->mScalingKeys[nodeAnim->mNumScalingKeys - 1].mValue);
 }
 
+const aiNode* AnimatedCharacter::findNodeByName(const aiNode* root, const std::string& nodeName) const
+{
+    if (!root)
+        return nullptr;
+
+    if (nodeName == root->mName.C_Str())
+        return root;
+
+    for (unsigned int i = 0; i < root->mNumChildren; ++i)
+    {
+        if (const aiNode* child = findNodeByName(root->mChildren[i], nodeName))
+            return child;
+    }
+
+    return nullptr;
+}
+
+const aiNode* AnimatedCharacter::findSkeletonRoot(const aiScene* targetScene) const
+{
+    if (!targetScene || !targetScene->mRootNode || boneMapping.empty())
+        return nullptr;
+
+    std::vector<const aiNode*> commonPath;
+    bool firstBone = true;
+
+    for (const auto& pair : boneMapping)
+    {
+        const aiNode* boneNode = findNodeByName(targetScene->mRootNode, pair.first);
+        if (!boneNode)
+            continue;
+
+        std::vector<const aiNode*> path;
+        for (const aiNode* cursor = boneNode; cursor != nullptr; cursor = cursor->mParent)
+            path.push_back(cursor);
+
+        std::reverse(path.begin(), path.end());
+
+        if (firstBone)
+        {
+            commonPath = path;
+            firstBone = false;
+            continue;
+        }
+
+        size_t sharedLength = 0;
+        const size_t compareLength = std::min(commonPath.size(), path.size());
+
+        while (sharedLength < compareLength && commonPath[sharedLength] == path[sharedLength])
+            ++sharedLength;
+
+        commonPath.resize(sharedLength);
+    }
+
+    if (commonPath.empty())
+        return nullptr;
+
+    return commonPath.back();
+}
+
+glm::mat4 AnimatedCharacter::computeNodeGlobalTransform(const aiNode* node) const
+{
+    glm::mat4 global(1.0f);
+    std::vector<const aiNode*> path;
+
+    for (const aiNode* cursor = node; cursor != nullptr; cursor = cursor->mParent)
+        path.push_back(cursor);
+
+    for (auto it = path.rbegin(); it != path.rend(); ++it)
+        global *= toGlm((*it)->mTransformation);
+
+    return global;
+}
+
 glm::mat4 AnimatedCharacter::toGlm(const aiMatrix4x4& matrix)
 {
-    glm::mat4 result;
+    glm::mat4 result(1.0f);
+
     result[0][0] = matrix.a1; result[1][0] = matrix.a2; result[2][0] = matrix.a3; result[3][0] = matrix.a4;
     result[0][1] = matrix.b1; result[1][1] = matrix.b2; result[2][1] = matrix.b3; result[3][1] = matrix.b4;
     result[0][2] = matrix.c1; result[1][2] = matrix.c2; result[2][2] = matrix.c3; result[3][2] = matrix.c4;
     result[0][3] = matrix.d1; result[1][3] = matrix.d2; result[2][3] = matrix.d3; result[3][3] = matrix.d4;
+
     return result;
 }
 
@@ -516,6 +661,7 @@ glm::quat AnimatedCharacter::toGlm(const aiQuaternion& value)
 void AnimatedCharacter::setVertexBoneData(Vertex& vertex, int boneId, float weight)
 {
     int weakestIndex = 0;
+
     for (int i = 0; i < kMaxWeightsPerVertex; ++i)
     {
         if (vertex.boneWeights[i] == 0.0f)

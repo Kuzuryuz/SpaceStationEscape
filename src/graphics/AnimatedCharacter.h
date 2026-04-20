@@ -2,6 +2,7 @@
 
 #include <glad/glad.h>
 
+#include <assimp/Importer.hpp>
 #include <assimp/matrix4x4.h>
 #include <assimp/quaternion.h>
 #include <assimp/scene.h>
@@ -17,18 +18,22 @@
 
 class Shader;
 class Texture;
-namespace Assimp { class Importer; }
 
 class AnimatedCharacter
 {
 public:
-    AnimatedCharacter(const std::string& modelPath, const std::string& texturePath);
+    AnimatedCharacter(const std::string& modelPath, const std::string& texturePath, bool looping = true);
+    AnimatedCharacter(
+        const std::string& modelPath,
+        const std::string& animationPath,
+        const std::string& texturePath,
+        bool looping = true);
     ~AnimatedCharacter();
 
     AnimatedCharacter(const AnimatedCharacter&) = delete;
     AnimatedCharacter& operator=(const AnimatedCharacter&) = delete;
 
-    void update(float deltaSeconds, bool isWalking);
+    void update(float deltaSeconds, bool restart = false);
     void draw(
         Shader& shader,
         const glm::mat4& view,
@@ -38,51 +43,49 @@ public:
 
     bool isLoaded() const { return loaded; }
     std::string getError() const { return loadError; }
+    bool isFinished() const { return finished; }
 
 private:
     static constexpr int kMaxWeightsPerVertex = 4;
 
     struct Vertex
     {
-        glm::vec3 position{0.0f};
-        glm::vec3 normal{0.0f, 1.0f, 0.0f};
-        glm::vec2 uv{0.0f};
+        glm::vec3 position{ 0.0f };
+        glm::vec3 normal{ 0.0f, 1.0f, 0.0f };
+        glm::vec2 uv{ 0.0f };
         int boneIds[kMaxWeightsPerVertex]{ 0, 0, 0, 0 };
         float boneWeights[kMaxWeightsPerVertex]{ 0.0f, 0.0f, 0.0f, 0.0f };
     };
 
     struct RenderVertex
     {
-        glm::vec3 position{0.0f};
-        glm::vec3 normal{0.0f, 1.0f, 0.0f};
-        glm::vec2 uv{0.0f};
+        glm::vec3 position{ 0.0f };
+        glm::vec3 normal{ 0.0f, 1.0f, 0.0f };
+        glm::vec2 uv{ 0.0f };
     };
 
     struct BoneInfo
     {
-        glm::mat4 offset{1.0f};
+        glm::mat4 offset{ 1.0f };
     };
 
-    struct Clip
-    {
-        double startFrame = 0.0;
-        double endFrame = 0.0;
-    };
-
-    void loadModel(const std::string& modelPath, const std::string& texturePath);
+    void loadModel(const std::string& modelPath, const std::string& animationPath, const std::string& texturePath);
     void setupMesh();
-    void extractMesh(aiMesh* mesh);
-    void readBoneWeights(aiMesh* mesh);
-    bool findNodeForMesh(const aiNode* node, unsigned int meshIndex, const glm::mat4& parentTransform, glm::mat4& outGlobalTransform) const;
-    bool findNodeByName(const aiNode* node, const std::string& nodeName, const glm::mat4& parentTransform, glm::mat4& outGlobalTransform) const;
+    void extractMesh(aiMesh* mesh, unsigned int baseVertex);
+    void readBoneWeights(aiMesh* mesh, unsigned int baseVertex);
 
     void updateAnimationPose();
     void readNodeHierarchy(double animationTimeTicks, const aiNode* node, const glm::mat4& parentTransform);
     const aiNodeAnim* findNodeAnim(const aiAnimation* animation, const std::string& nodeName) const;
+    double getAnimationDurationSeconds() const;
 
     glm::vec3 interpolatePosition(double animationTimeTicks, const aiNodeAnim* nodeAnim) const;
     glm::quat interpolateRotation(double animationTimeTicks, const aiNodeAnim* nodeAnim) const;
     glm::vec3 interpolateScaling(double animationTimeTicks, const aiNodeAnim* nodeAnim) const;
+
+    const aiNode* findNodeByName(const aiNode* root, const std::string& nodeName) const;
+    const aiNode* findSkeletonRoot(const aiScene* targetScene) const;
+    glm::mat4 computeNodeGlobalTransform(const aiNode* node) const;
 
     static glm::mat4 toGlm(const aiMatrix4x4& matrix);
     static glm::vec3 toGlm(const aiVector3D& value);
@@ -92,8 +95,12 @@ private:
     void normalizeVertexWeights();
     void updateFittedBounds();
 
-    std::unique_ptr<Assimp::Importer> importer;
-    const aiScene* scene = nullptr;
+    std::unique_ptr<Assimp::Importer> modelImporter;
+    std::unique_ptr<Assimp::Importer> animationImporter;
+    const aiScene* modelScene = nullptr;
+    const aiScene* animationScene = nullptr;
+    const aiAnimation* animation = nullptr;
+    const aiNode* animationRootNode = nullptr;
     std::unique_ptr<Texture> texture;
 
     std::vector<Vertex> baseVertices;
@@ -108,13 +115,12 @@ private:
     GLuint vbo = 0;
     GLuint ebo = 0;
 
-    glm::mat4 skeletonInverseTransform{1.0f};
-    glm::vec3 fittedBasePivot{0.0f};
+    glm::mat4 skeletonInverseTransform{ 1.0f };
+    glm::vec3 fittedBasePivot{ 0.0f };
     float fittedScale = 50.0f;
-    Clip idleClip{30.0, 150.0};
-    Clip walkClip{151.0, 180.0};
     double clipTimeSeconds = 0.0;
-    bool walking = false;
+    bool looping = true;
+    bool finished = false;
     bool loaded = false;
     std::string loadError;
 };

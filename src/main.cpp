@@ -23,7 +23,8 @@ float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
 glm::vec3 playerPos(0.0f, 0.0f, 0.0f);
-float playerSpeed = 3.5f;
+float walkSpeed = 3.5f;
+float runSpeed = 6.0f;
 float playerRadius = 0.35f;
 float playerYaw = 90.0f;
 
@@ -38,9 +39,21 @@ float lastMouseX = SCR_WIDTH * 0.5f;
 float lastMouseY = SCR_HEIGHT * 0.5f;
 
 bool ePressedLastFrame = false;
+bool onePressedLastFrame = false;
 bool showInteractPrompt = false;
 int nearestInteractableIndex = -1;
 bool playerIsMoving = false;
+bool playerIsRunning = false;
+bool playerDanceTriggered = false;
+bool playerIsDancing = false;
+
+enum class PlayerAnimationState
+{
+    Idle,
+    Walk,
+    Run,
+    Dance
+};
 
 World world;
 GameState gameState;
@@ -137,13 +150,29 @@ void processInput(GLFWwindow* window)
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
+    const bool onePressedNow = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
+    playerDanceTriggered = onePressedNow && !onePressedLastFrame;
+    onePressedLastFrame = onePressedNow;
+
     if (gameState.gameFinished)
     {
         playerIsMoving = false;
+        playerIsRunning = false;
         return;
     }
 
-    float moveAmount = playerSpeed * deltaTime;
+    if (playerIsDancing)
+    {
+        playerIsMoving = false;
+        playerIsRunning = false;
+        return;
+    }
+
+    const bool shiftHeld =
+        glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+        glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+    const float currentSpeed = shiftHeld ? runSpeed : walkSpeed;
+    float moveAmount = currentSpeed * deltaTime;
     glm::vec3 forward = getCameraForwardXZ();
     glm::vec3 right = getCameraRightXZ();
 
@@ -161,6 +190,7 @@ void processInput(GLFWwindow* window)
     if (glm::length(moveDelta) > 0.0f)
     {
         playerIsMoving = true;
+        playerIsRunning = shiftHeld;
         moveDelta = glm::normalize(moveDelta) * moveAmount;
         tryMovePlayer(moveDelta);
         playerYaw = glm::degrees(std::atan2(-moveDelta.z, moveDelta.x));
@@ -168,6 +198,7 @@ void processInput(GLFWwindow* window)
     else
     {
         playerIsMoving = false;
+        playerIsRunning = false;
     }
 }
 
@@ -743,15 +774,41 @@ int main()
         std::string(PROJECT_ROOT) + "/shaders/hud.fs"
     );
 
-    AnimatedCharacter playerCharacter(
-        std::string(PROJECT_ROOT) + "/assets/models/character/astronaut/source/astronaut.fbx",
-        std::string(PROJECT_ROOT) + "/assets/models/character/astronaut/textures/AstronautColor.png"
+    const std::string astronautTexture =
+        std::string(PROJECT_ROOT) + "/assets/models/character/astronaut/textures/AstronautColor.png";
+
+    AnimatedCharacter idleCharacter(
+        std::string(PROJECT_ROOT) + "/assets/animation/character/idle.glb",
+        astronautTexture,
+        true
     );
 
-    if (!playerCharacter.isLoaded())
-    {
-        std::cerr << "Player character failed to load: " << playerCharacter.getError() << "\n";
-    }
+    AnimatedCharacter walkCharacter(
+        std::string(PROJECT_ROOT) + "/assets/animation/character/walking.glb",
+        astronautTexture,
+        true
+    );
+
+    AnimatedCharacter runCharacter(
+        std::string(PROJECT_ROOT) + "/assets/animation/character/running.glb",
+        astronautTexture,
+        true
+    );
+
+    AnimatedCharacter danceCharacter(
+        std::string(PROJECT_ROOT) + "/assets/animation/character/chicken_dance.glb",
+        astronautTexture,
+        false
+    );
+
+    if (!idleCharacter.isLoaded())
+        std::cerr << "Idle character failed: " << idleCharacter.getError() << "\n";
+    if (!walkCharacter.isLoaded())
+        std::cerr << "Walk character failed: " << walkCharacter.getError() << "\n";
+    if (!runCharacter.isLoaded())
+        std::cerr << "Run character failed: " << runCharacter.getError() << "\n";
+    if (!danceCharacter.isLoaded())
+        std::cerr << "Dance character failed: " << danceCharacter.getError() << "\n";
 
     float vertices[] = {
         -0.5f, -0.5f, -0.5f,
@@ -849,6 +906,7 @@ int main()
     world.setGameState(&gameState);
 
     bool winPrinted = false;
+    PlayerAnimationState currentAnimationState = PlayerAnimationState::Idle;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -857,7 +915,34 @@ int main()
         lastFrame = currentFrame;
 
         processInput(window);
-        playerCharacter.update(deltaTime, playerIsMoving);
+        if (playerDanceTriggered)
+        {
+            currentAnimationState = PlayerAnimationState::Dance;
+            danceCharacter.update(0.0f, true);
+        }
+
+        PlayerAnimationState desiredAnimationState = PlayerAnimationState::Idle;
+        if (playerIsRunning)
+            desiredAnimationState = PlayerAnimationState::Run;
+        else if (playerIsMoving)
+            desiredAnimationState = PlayerAnimationState::Walk;
+
+        idleCharacter.update(deltaTime);
+        walkCharacter.update(deltaTime);
+        runCharacter.update(deltaTime);
+
+        if (currentAnimationState == PlayerAnimationState::Dance)
+        {
+            danceCharacter.update(deltaTime);
+            if (danceCharacter.isFinished())
+                currentAnimationState = desiredAnimationState;
+        }
+        else
+        {
+            currentAnimationState = desiredAnimationState;
+        }
+
+        playerIsDancing = (currentAnimationState == PlayerAnimationState::Dance);
         updateInteractPrompt();
         handleInteraction(window);
         updateStoryEvents();
@@ -1005,9 +1090,28 @@ int main()
             }
         }
 
-        if (playerCharacter.isLoaded())
+        AnimatedCharacter* activeCharacter = nullptr;
+        switch (currentAnimationState)
         {
-            playerCharacter.draw(characterShader, view, projection, playerPos, playerYaw);
+        case PlayerAnimationState::Walk:
+            activeCharacter = walkCharacter.isLoaded() ? &walkCharacter : nullptr;
+            break;
+        case PlayerAnimationState::Run:
+            activeCharacter = runCharacter.isLoaded() ? &runCharacter : nullptr;
+            break;
+        case PlayerAnimationState::Dance:
+            activeCharacter = danceCharacter.isLoaded() ? &danceCharacter : nullptr;
+            break;
+        case PlayerAnimationState::Idle:
+        default:
+            activeCharacter = idleCharacter.isLoaded() ? &idleCharacter : nullptr;
+            break;
+        }
+
+        if (activeCharacter)
+        {
+            activeCharacter->update(deltaTime);
+            activeCharacter->draw(characterShader, view, projection, playerPos, playerYaw);
         }
         else
         {
