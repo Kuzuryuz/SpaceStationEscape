@@ -12,6 +12,12 @@ struct BoxCollider
     glm::vec3 halfSize;
 };
 
+struct CircleCollider
+{
+    glm::vec3 center;
+    float radius = 0.0f;
+};
+
 struct WorldObject
 {
     std::string id;
@@ -56,6 +62,7 @@ public:
 
     std::vector<WorldObject> staticObjects;
     std::vector<BoxCollider> colliders;
+    std::vector<CircleCollider> circleColliders;
     std::vector<Room> rooms;
     std::vector<Interactable> interactables;
     std::vector<Door> doors;
@@ -85,4 +92,5 @@ private:
     void addDoor(const std::string& name, const glm::vec3& center, const glm::vec3& halfSize, float rotationY, bool open, const glm::vec3& closedColor, const glm::vec3& openColor);
     Door* findDoor(const std::string& name);
     static bool intersectsCircleBoxXZ(const glm::vec3& circleCenter, float radius, const BoxCollider& box);
+    static bool intersectsCircleCircleXZ(const glm::vec3& aCenter, float aRadius, const glm::vec3& bCenter, float bRadius);
 };

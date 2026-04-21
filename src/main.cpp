@@ -13,7 +13,9 @@
 
 #include "graphics/AnimatedCharacter.h"
 #include "graphics/Shader.h"
+#include "graphics/StaticModel.h"
 #include "world/World.h"
+#include "world/TestRoomScene.h"
 #include "GameState.h"
 
 static const unsigned int SCR_WIDTH = 1280;
@@ -769,6 +771,11 @@ int main()
         std::string(PROJECT_ROOT) + "/shaders/character.fs"
     );
 
+    Shader staticModelShader(
+        std::string(PROJECT_ROOT) + "/shaders/static_model.vs",
+        std::string(PROJECT_ROOT) + "/shaders/static_model.fs"
+    );
+
     Shader hudShader(
         std::string(PROJECT_ROOT) + "/shaders/hud.vs",
         std::string(PROJECT_ROOT) + "/shaders/hud.fs"
@@ -890,6 +897,8 @@ int main()
 
     auto drawCube = [&](glm::vec3 position, glm::vec3 scale, glm::vec3 color, float rotationY = 0.0f)
         {
+            shader.use();
+
             glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, position);
             model = glm::rotate(model, glm::radians(rotationY), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -902,10 +911,44 @@ int main()
             glDrawArrays(GL_TRIANGLES, 0, 36);
         };
 
+    auto drawStaticModel = [&](StaticModel& modelAsset, const ModelPlacement& placement)
+        {
+            if (!modelAsset.isLoaded())
+                return;
+
+            staticModelShader.use();
+
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, placement.position);
+            model = glm::rotate(model, glm::radians(placement.rotationY), glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::scale(model, placement.scale);
+
+            staticModelShader.setMat4("model", model);
+            staticModelShader.setVec3("tintColor", glm::vec3(1.0f));
+            staticModelShader.setVec3("lightDir", glm::normalize(glm::vec3(-0.35f, -1.0f, -0.15f)));
+            staticModelShader.setVec3("ambientColor", glm::vec3(0.72f, 0.70f, 0.82f));
+            modelAsset.Draw(staticModelShader);
+        };
+
+    StaticModel roomLarge(std::string(PROJECT_ROOT) + "/assets/models/ModularSpaceKit/room-large.obj");
+    StaticModel corridor(std::string(PROJECT_ROOT) + "/assets/models/ModularSpaceKit/corridor.obj");
+    StaticModel gate(std::string(PROJECT_ROOT) + "/assets/models/ModularSpaceKit/gate.obj");
+    StaticModel gateDoor(std::string(PROJECT_ROOT) + "/assets/models/ModularSpaceKit/gate-door.obj");
+    StaticModel bedDouble(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/bed-double.obj");
+    StaticModel bedDoubleCover(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/bed-double-cover.obj");
+    TestRoomScene testRoomScene = createTestRoomScene();
+
     world.buildDefaultRoom();
     world.setGameState(&gameState);
 
+    if (kTemplateRoomTestMode)
+    {
+        configureTestRoomWorld(world, testRoomScene, gameState.powerFixed);
+        playerPos = testRoomScene.playerStart;
+    }
+
     bool winPrinted = false;
+    bool testRoomPowerFixedState = gameState.powerFixed;
     PlayerAnimationState currentAnimationState = PlayerAnimationState::Idle;
 
     while (!glfwWindowShouldClose(window))
@@ -945,6 +988,11 @@ int main()
         playerIsDancing = (currentAnimationState == PlayerAnimationState::Dance);
         updateInteractPrompt();
         handleInteraction(window);
+        if (kTemplateRoomTestMode && testRoomPowerFixedState != gameState.powerFixed)
+        {
+            configureTestRoomWorld(world, testRoomScene, gameState.powerFixed);
+            testRoomPowerFixedState = gameState.powerFixed;
+        }
         updateStoryEvents();
         updateSubtitles();
 
@@ -988,6 +1036,9 @@ int main()
 
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
+        staticModelShader.use();
+        staticModelShader.setMat4("view", view);
+        staticModelShader.setMat4("projection", projection);
 
         const int currentObjectiveIndex = world.getCurrentObjectiveInteractableIndex();
         const std::string currentObjectiveId = currentObjectiveIndex != -1
@@ -997,95 +1048,140 @@ int main()
         const float pulse = 0.55f + 0.45f * std::sin(currentFrame * 4.5f);
         const float flicker = 0.65f + 0.35f * std::sin(currentFrame * 18.0f);
 
-        for (const auto& obj : world.staticObjects)
+        if (kTemplateRoomTestMode)
         {
-            glm::vec3 drawColor = obj.color;
-
-            if (obj.id == "oxygen_console")
+            for (const auto& roomPlacement : testRoomScene.roomPlacements)
+                drawStaticModel(roomLarge, roomPlacement);
+            for (const auto& corridorPlacement : testRoomScene.corridorPlacements)
+                drawStaticModel(corridor, corridorPlacement);
+            for (const auto& gatePlacement : testRoomScene.gatePlacements)
+                drawStaticModel(gate, gatePlacement);
+            for (const auto& gateDoorPlacement : testRoomScene.gateDoorPlacements)
+                drawStaticModel(gateDoor, gateDoorPlacement);
+            for (const auto& powerUnlockGatePlacement : testRoomScene.powerUnlockGatePlacements)
             {
-                drawColor = gameState.oxygenFixed
-                    ? glm::vec3(0.2f, 1.0f, 0.2f)
-                    : glm::vec3(0.8f, 0.8f, 0.2f);
+                if (gameState.powerFixed)
+                    drawStaticModel(gate, powerUnlockGatePlacement);
+                else
+                    drawStaticModel(gateDoor, powerUnlockGatePlacement);
             }
+            for (const auto& bedPlacement : testRoomScene.bedPlacements)
+                drawStaticModel(bedDouble, bedPlacement);
+            for (const auto& bedCoverPlacement : testRoomScene.bedCoverPlacements)
+                drawStaticModel(bedDoubleCover, bedCoverPlacement);
 
-            if (obj.id == "power_console")
-            {
-                drawColor = gameState.powerFixed
-                    ? glm::vec3(0.25f, 1.0f, 0.35f)
-                    : glm::vec3(0.20f, 0.55f, 1.0f);
-            }
+            glm::vec3 oxygenConsoleColor = gameState.oxygenFixed
+                ? glm::vec3(0.2f, 1.0f, 0.2f)
+                : testRoomScene.oxygenConsolePlacement.color;
+            drawCube(
+                testRoomScene.oxygenConsolePlacement.position,
+                testRoomScene.oxygenConsolePlacement.scale,
+                oxygenConsoleColor,
+                testRoomScene.oxygenConsolePlacement.rotationY
+            );
 
-            if (!gameState.powerFixed &&
-                (obj.id.find("floor_storage") != std::string::npos ||
-                 obj.id.find("floor_lab") != std::string::npos ||
-                 obj.id.find("floor_control") != std::string::npos ||
-                 obj.id == "control_terminal" ||
-                 obj.id == "control_beacon_left" ||
-                 obj.id == "control_beacon_right"))
-            {
-                drawColor *= 0.35f;
-            }
-
-            if (obj.id == currentObjectiveId)
-            {
-                drawColor = glm::min(drawColor + glm::vec3(0.18f + 0.30f * pulse), glm::vec3(1.0f));
-            }
-
-            if ((obj.id == "control_beacon_left" || obj.id == "control_beacon_right") && gameState.powerFixed)
-            {
-                drawColor = glm::vec3(0.75f, 0.18f, 0.35f);
-            }
-
-            drawCube(obj.pos, obj.scale, drawColor, obj.rotationY);
+            glm::vec3 powerConsoleColor = gameState.powerFixed
+                ? glm::vec3(0.25f, 1.0f, 0.35f)
+                : testRoomScene.powerConsolePlacement.color;
+            drawCube(
+                testRoomScene.powerConsolePlacement.position,
+                testRoomScene.powerConsolePlacement.scale,
+                powerConsoleColor,
+                testRoomScene.powerConsolePlacement.rotationY
+            );
         }
-
-        for (const auto& door : world.doors)
+        else
         {
-            glm::vec3 doorScale = door.halfSize * 2.0f;
-
-            if (!door.open)
+            for (const auto& obj : world.staticObjects)
             {
-                glm::vec3 closedColor = door.closedColor;
-                glm::vec3 closedScale = doorScale * 1.2f;
+                glm::vec3 drawColor = obj.color;
 
-                if (door.name == "Control Door" && gameState.hasCode)
+                if (obj.id == "oxygen_console")
                 {
-                    closedColor = glm::mix(door.closedColor, door.openColor, 0.35f + 0.35f * pulse);
+                    drawColor = gameState.oxygenFixed
+                        ? glm::vec3(0.2f, 1.0f, 0.2f)
+                        : glm::vec3(0.8f, 0.8f, 0.2f);
                 }
 
-                drawCube(door.center, closedScale, closedColor, 0.0f);
-            }
-            else
-            {
-                if (door.rotationY == 0.0f)
+                if (obj.id == "power_console")
                 {
-                    drawCube(
-                        door.center + glm::vec3(-door.halfSize.x * 0.95f, 0.0f, 0.0f),
-                        glm::vec3(door.halfSize.x, doorScale.y, doorScale.z),
-                        door.openColor,
-                        door.rotationY
-                    );
-                    drawCube(
-                        door.center + glm::vec3(door.halfSize.x * 0.95f, 0.0f, 0.0f),
-                        glm::vec3(door.halfSize.x, doorScale.y, doorScale.z),
-                        door.openColor,
-                        door.rotationY
-                    );
+                    drawColor = gameState.powerFixed
+                        ? glm::vec3(0.25f, 1.0f, 0.35f)
+                        : glm::vec3(0.20f, 0.55f, 1.0f);
+                }
+
+                if (!gameState.powerFixed &&
+                    (obj.id.find("floor_storage") != std::string::npos ||
+                     obj.id.find("floor_lab") != std::string::npos ||
+                     obj.id.find("floor_control") != std::string::npos ||
+                     obj.id == "control_terminal" ||
+                     obj.id == "control_beacon_left" ||
+                     obj.id == "control_beacon_right"))
+                {
+                    drawColor *= 0.35f;
+                }
+
+                if (obj.id == currentObjectiveId)
+                {
+                    drawColor = glm::min(drawColor + glm::vec3(0.18f + 0.30f * pulse), glm::vec3(1.0f));
+                }
+
+                if ((obj.id == "control_beacon_left" || obj.id == "control_beacon_right") && gameState.powerFixed)
+                {
+                    drawColor = glm::vec3(0.75f, 0.18f, 0.35f);
+                }
+
+                drawCube(obj.pos, obj.scale, drawColor, obj.rotationY);
+            }
+
+            for (const auto& door : world.doors)
+            {
+                glm::vec3 doorScale = door.halfSize * 2.0f;
+
+                if (!door.open)
+                {
+                    glm::vec3 closedColor = door.closedColor;
+                    glm::vec3 closedScale = doorScale * 1.2f;
+
+                    if (door.name == "Control Door" && gameState.hasCode)
+                    {
+                        closedColor = glm::mix(door.closedColor, door.openColor, 0.35f + 0.35f * pulse);
+                    }
+
+                    drawCube(door.center, closedScale, closedColor, 0.0f);
                 }
                 else
                 {
-                    drawCube(
-                        door.center + glm::vec3(0.0f, 0.0f, -door.halfSize.z * 0.95f),
-                        glm::vec3(doorScale.x, doorScale.y, door.halfSize.z),
-                        door.openColor,
-                        0.0f
-                    );
-                    drawCube(
-                        door.center + glm::vec3(0.0f, 0.0f, door.halfSize.z * 0.95f),
-                        glm::vec3(doorScale.x, doorScale.y, door.halfSize.z),
-                        door.openColor,
-                        0.0f
-                    );
+                    if (door.rotationY == 0.0f)
+                    {
+                        drawCube(
+                            door.center + glm::vec3(-door.halfSize.x * 0.95f, 0.0f, 0.0f),
+                            glm::vec3(door.halfSize.x, doorScale.y, doorScale.z),
+                            door.openColor,
+                            door.rotationY
+                        );
+                        drawCube(
+                            door.center + glm::vec3(door.halfSize.x * 0.95f, 0.0f, 0.0f),
+                            glm::vec3(door.halfSize.x, doorScale.y, doorScale.z),
+                            door.openColor,
+                            door.rotationY
+                        );
+                    }
+                    else
+                    {
+                        drawCube(
+                            door.center + glm::vec3(0.0f, 0.0f, -door.halfSize.z * 0.95f),
+                            glm::vec3(doorScale.x, doorScale.y, door.halfSize.z),
+                            door.openColor,
+                            0.0f
+                        );
+                        drawCube(
+                            door.center + glm::vec3(0.0f, 0.0f, door.halfSize.z * 0.95f),
+                            glm::vec3(doorScale.x, doorScale.y, door.halfSize.z),
+                            door.openColor,
+                            0.0f
+                        );
+                    }
                 }
             }
         }

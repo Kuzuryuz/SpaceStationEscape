@@ -151,6 +151,7 @@ void World::buildDefaultRoom()
 {
     staticObjects.clear();
     colliders.clear();
+    circleColliders.clear();
     rooms.clear();
     interactables.clear();
     doors.clear();
@@ -499,11 +500,25 @@ bool World::intersectsCircleBoxXZ(const glm::vec3& circleCenter, float radius, c
     return (dx * dx + dz * dz) < (radius * radius);
 }
 
+bool World::intersectsCircleCircleXZ(const glm::vec3& aCenter, float aRadius, const glm::vec3& bCenter, float bRadius)
+{
+    const float dx = aCenter.x - bCenter.x;
+    const float dz = aCenter.z - bCenter.z;
+    const float combinedRadius = aRadius + bRadius;
+    return (dx * dx + dz * dz) < (combinedRadius * combinedRadius);
+}
+
 bool World::collidesWithWorld(const glm::vec3& testPos, float playerRadius) const
 {
     for (const auto& box : colliders)
     {
         if (intersectsCircleBoxXZ(testPos, playerRadius, box))
+            return true;
+    }
+
+    for (const auto& circle : circleColliders)
+    {
+        if (intersectsCircleCircleXZ(testPos, playerRadius, circle.center, circle.radius))
             return true;
     }
 

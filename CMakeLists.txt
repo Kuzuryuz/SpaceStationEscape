@@ -48,11 +48,15 @@ FetchContent_MakeAvailable(assimp)
 add_executable(SpaceStationEscape
     src/main.cpp
     "src/graphics/Shader.cpp"
+    "src/graphics/StaticModel.cpp"
     "src/graphics/Texture.cpp"
     "src/graphics/AnimatedCharacter.cpp"
     "src/world/World.cpp"
+    "src/world/TestRoomScene.cpp"
+    "src/graphics/StaticModel.h"
     "src/graphics/Texture.h"
     "src/graphics/AnimatedCharacter.h"
+    "src/world/TestRoomScene.h"
     "src/GameState.h")
 
 target_include_directories(SpaceStationEscape PRIVATE
