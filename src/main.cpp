@@ -569,7 +569,7 @@ void drawProgressAndObjective(const GameState& s, Shader& hudShader, unsigned in
 
     const float panelX = 16.0f;
     const float panelY = 16.0f;
-    const float panelW = 320.0f;
+    const float panelW = 400.0f;
     const float panelH = 96.0f;
 
     drawRectHUD(hudShader, quadVAO, panelX, panelY, panelW, panelH, glm::vec3(0.08f, 0.10f, 0.14f));
