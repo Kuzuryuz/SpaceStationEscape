@@ -1,10 +1,13 @@
 ## **Available Animations**
 **Idle**
 - The default animation when the character is not moving.
+  
 **Walk**
 - Triggered when the player moves the character normally.
+  
 **Run (Hold Shift)**
 - Activated when holding the Shift key while moving, increasing movement speed and switching to the running animation.
+  
 **Dance (Press 1)**
 - Pressing the 1 key triggers a special dance animation (chicken dance style) for fun interaction.
 
