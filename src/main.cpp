@@ -57,6 +57,27 @@ enum class PlayerAnimationState
     Dance
 };
 
+AnimatedCharacter* getCharacterForState(
+    PlayerAnimationState state,
+    AnimatedCharacter& idleCharacter,
+    AnimatedCharacter& walkCharacter,
+    AnimatedCharacter& runCharacter,
+    AnimatedCharacter& danceCharacter)
+{
+    switch (state)
+    {
+    case PlayerAnimationState::Walk:
+        return walkCharacter.isLoaded() ? &walkCharacter : nullptr;
+    case PlayerAnimationState::Run:
+        return runCharacter.isLoaded() ? &runCharacter : nullptr;
+    case PlayerAnimationState::Dance:
+        return danceCharacter.isLoaded() ? &danceCharacter : nullptr;
+    case PlayerAnimationState::Idle:
+    default:
+        return idleCharacter.isLoaded() ? &idleCharacter : nullptr;
+    }
+}
+
 World world;
 GameState gameState;
 
@@ -970,9 +991,12 @@ int main()
         else if (playerIsMoving)
             desiredAnimationState = PlayerAnimationState::Walk;
 
-        idleCharacter.update(deltaTime);
-        walkCharacter.update(deltaTime);
-        runCharacter.update(deltaTime);
+        AnimatedCharacter* previousActiveCharacter = getCharacterForState(
+            currentAnimationState,
+            idleCharacter,
+            walkCharacter,
+            runCharacter,
+            danceCharacter);
 
         if (currentAnimationState == PlayerAnimationState::Dance)
         {
@@ -984,6 +1008,25 @@ int main()
         {
             currentAnimationState = desiredAnimationState;
         }
+
+        AnimatedCharacter* activeCharacter = getCharacterForState(
+            currentAnimationState,
+            idleCharacter,
+            walkCharacter,
+            runCharacter,
+            danceCharacter);
+
+        if (activeCharacter != previousActiveCharacter &&
+            activeCharacter &&
+            previousActiveCharacter &&
+            activeCharacter->isLooping() &&
+            previousActiveCharacter->isLooping())
+        {
+            activeCharacter->setNormalizedTime(previousActiveCharacter->getNormalizedTime());
+        }
+
+        if (activeCharacter && currentAnimationState != PlayerAnimationState::Dance)
+            activeCharacter->update(deltaTime);
 
         playerIsDancing = (currentAnimationState == PlayerAnimationState::Dance);
         updateInteractPrompt();
@@ -1186,27 +1229,8 @@ int main()
             }
         }
 
-        AnimatedCharacter* activeCharacter = nullptr;
-        switch (currentAnimationState)
-        {
-        case PlayerAnimationState::Walk:
-            activeCharacter = walkCharacter.isLoaded() ? &walkCharacter : nullptr;
-            break;
-        case PlayerAnimationState::Run:
-            activeCharacter = runCharacter.isLoaded() ? &runCharacter : nullptr;
-            break;
-        case PlayerAnimationState::Dance:
-            activeCharacter = danceCharacter.isLoaded() ? &danceCharacter : nullptr;
-            break;
-        case PlayerAnimationState::Idle:
-        default:
-            activeCharacter = idleCharacter.isLoaded() ? &idleCharacter : nullptr;
-            break;
-        }
-
         if (activeCharacter)
         {
-            activeCharacter->update(deltaTime);
             activeCharacter->draw(characterShader, view, projection, playerPos, playerYaw);
         }
         else
