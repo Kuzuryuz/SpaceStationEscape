@@ -26,7 +26,7 @@ float lastFrame = 0.0f;
 
 glm::vec3 playerPos(0.0f, 0.0f, 0.0f);
 float walkSpeed = 3.5f;
-float runSpeed = 6.0f;
+float runSpeed = 7.0f;
 float playerRadius = 0.35f;
 float playerYaw = 90.0f;
 
@@ -936,6 +936,10 @@ int main()
     StaticModel gateDoor(std::string(PROJECT_ROOT) + "/assets/models/ModularSpaceKit/gate-door.obj");
     StaticModel bedDouble(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/bed-double.obj");
     StaticModel bedDoubleCover(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/bed-double-cover.obj");
+    StaticModel tableDisplay(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/table-display.obj");
+    StaticModel skipRocks(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/skip-rocks.obj");
+    StaticModel rocks(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/rocks.obj");
+    StaticModel computerScreen(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer-screen.obj");
     TestRoomScene testRoomScene = createTestRoomScene();
 
     world.buildDefaultRoom();
@@ -943,12 +947,13 @@ int main()
 
     if (kTemplateRoomTestMode)
     {
-        configureTestRoomWorld(world, testRoomScene, gameState.powerFixed);
+        configureTestRoomWorld(world, testRoomScene, gameState.powerFixed, gameState.controlUnlocked);
         playerPos = testRoomScene.playerStart;
     }
 
     bool winPrinted = false;
     bool testRoomPowerFixedState = gameState.powerFixed;
+    bool testRoomControlUnlockedState = gameState.controlUnlocked;
     PlayerAnimationState currentAnimationState = PlayerAnimationState::Idle;
 
     while (!glfwWindowShouldClose(window))
@@ -988,10 +993,13 @@ int main()
         playerIsDancing = (currentAnimationState == PlayerAnimationState::Dance);
         updateInteractPrompt();
         handleInteraction(window);
-        if (kTemplateRoomTestMode && testRoomPowerFixedState != gameState.powerFixed)
+        if (kTemplateRoomTestMode &&
+            (testRoomPowerFixedState != gameState.powerFixed ||
+             testRoomControlUnlockedState != gameState.controlUnlocked))
         {
-            configureTestRoomWorld(world, testRoomScene, gameState.powerFixed);
+            configureTestRoomWorld(world, testRoomScene, gameState.powerFixed, gameState.controlUnlocked);
             testRoomPowerFixedState = gameState.powerFixed;
+            testRoomControlUnlockedState = gameState.controlUnlocked;
         }
         updateStoryEvents();
         updateSubtitles();
@@ -1065,30 +1073,47 @@ int main()
                 else
                     drawStaticModel(gateDoor, powerUnlockGatePlacement);
             }
+            for (const auto& controlUnlockGatePlacement : testRoomScene.controlUnlockGatePlacements)
+            {
+                if (gameState.controlUnlocked)
+                    drawStaticModel(gate, controlUnlockGatePlacement);
+                else
+                    drawStaticModel(gateDoor, controlUnlockGatePlacement);
+            }
             for (const auto& bedPlacement : testRoomScene.bedPlacements)
                 drawStaticModel(bedDouble, bedPlacement);
             for (const auto& bedCoverPlacement : testRoomScene.bedCoverPlacements)
                 drawStaticModel(bedDoubleCover, bedCoverPlacement);
+            for (const auto& labTableDisplayPlacement : testRoomScene.labTableDisplayPlacements)
+                drawStaticModel(tableDisplay, labTableDisplayPlacement);
+            drawStaticModel(skipRocks, testRoomScene.labSkipRocksPlacement);
+            drawStaticModel(rocks, testRoomScene.labRocksPlacement);
+            drawStaticModel(computerScreen, testRoomScene.controlTerminalPlacement);
+
+            auto drawInteractableCube = [&](const std::string& id, const ModelPlacement& placement, const glm::vec3& color)
+            {
+                glm::vec3 drawColor = color;
+                if (id == currentObjectiveId)
+                    drawColor = glm::min(drawColor + glm::vec3(0.18f + 0.30f * pulse), glm::vec3(1.0f));
+
+                drawCube(placement.position, placement.scale, drawColor, placement.rotationY);
+            };
 
             glm::vec3 oxygenConsoleColor = gameState.oxygenFixed
                 ? glm::vec3(0.2f, 1.0f, 0.2f)
                 : testRoomScene.oxygenConsolePlacement.color;
-            drawCube(
-                testRoomScene.oxygenConsolePlacement.position,
-                testRoomScene.oxygenConsolePlacement.scale,
-                oxygenConsoleColor,
-                testRoomScene.oxygenConsolePlacement.rotationY
-            );
+            drawInteractableCube("oxygen_console", testRoomScene.oxygenConsolePlacement, oxygenConsoleColor);
 
             glm::vec3 powerConsoleColor = gameState.powerFixed
                 ? glm::vec3(0.25f, 1.0f, 0.35f)
                 : testRoomScene.powerConsolePlacement.color;
-            drawCube(
-                testRoomScene.powerConsolePlacement.position,
-                testRoomScene.powerConsolePlacement.scale,
-                powerConsoleColor,
-                testRoomScene.powerConsolePlacement.rotationY
-            );
+            drawInteractableCube("power_console", testRoomScene.powerConsolePlacement, powerConsoleColor);
+
+            glm::vec3 storageNoteColor = gameState.foundNote
+                ? glm::vec3(0.25f, 1.0f, 0.35f)
+                : testRoomScene.storageNotePlacement.color;
+            drawInteractableCube("storage_note", testRoomScene.storageNotePlacement, storageNoteColor);
+
         }
         else
         {

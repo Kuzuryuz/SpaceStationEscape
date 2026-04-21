@@ -28,10 +28,29 @@ namespace
         kRoomLargeDoorOpeningHalfWidth + kGateFramePostHalfWidth;
     constexpr float kCornerFurnitureInset = 2.9f;
     constexpr float kBedScale = 4.0f;
+    constexpr float kLabTableDisplayScale = 3.0f;
+    constexpr float kLabTableDisplayCornerInset = 1.75f;
+    constexpr float kLabTableDisplaySpacing = 3.0f;
+    const glm::vec3 kLabTableDisplayHalfSize(2.0f, 1.0f, 1.7f);
+    constexpr float kLabTableInteractForwardOffset = 2.7f;
+    constexpr float kLabCornerPropInset = 1.75f;
+    constexpr float kLabCornerPropSpacing = 3.0f;
+    constexpr float kLabSkipRocksScale = 2.4f;
+    constexpr float kLabRocksScale = 2.2f;
+    const glm::vec3 kLabSkipRocksHalfSize(1.1f, 0.85f, 1.6f);
+    const glm::vec3 kLabRocksHalfSize(1.35f, 0.45f, 1.25f);
+    const glm::vec3 kLabRocksCollisionCenterOffset(-0.56f * kLabRocksScale, 0.0f, 0.52f * kLabRocksScale);
+    constexpr float kControlComputerScreenScale = 3.0f;
+    constexpr float kControlComputerScreenWallInset = 1.5f;
+    constexpr float kControlComputerInteractOffset = 2.2f;
+    const glm::vec3 kControlComputerScreenHalfSize(1.6f, 1.0f, 1.0f);
     const glm::vec3 kOxygenConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kOxygenConsoleColor(0.78f, 0.78f, 0.20f);
     const glm::vec3 kPowerConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kPowerConsoleColor(0.20f, 0.55f, 0.95f);
+    const glm::vec3 kStorageNoteScale(0.9f, 0.9f, 0.9f);
+    const glm::vec3 kStorageNoteColor(0.80f, 0.48f, 0.20f);
+    const glm::vec3 kControlTerminalColor(0.88f, 0.22f, 0.78f);
 
     glm::vec3 rotateOffsetY(const glm::vec3& offset, float degrees)
     {
@@ -46,10 +65,28 @@ namespace
         return glm::vec3(0.0f, kRoomLargeBaseY, -linkedRoomCenterOffset);
     }
 
+    glm::vec3 getStorageRoomCenter()
+    {
+        const float linkedRoomCenterOffset = 2.0f * (kRoomLargeHalfExtent + kCorridorJoinOffset);
+        return glm::vec3(0.0f, kRoomLargeBaseY, linkedRoomCenterOffset);
+    }
+
+    glm::vec3 getControlRoomCenter()
+    {
+        const float linkedRoomCenterOffset = 2.0f * (kRoomLargeHalfExtent + kCorridorJoinOffset);
+        return glm::vec3(-linkedRoomCenterOffset, kRoomLargeBaseY, 0.0f);
+    }
+
     glm::vec3 getPowerRoomCenter()
     {
         const float linkedRoomCenterOffset = 2.0f * (kRoomLargeHalfExtent + kCorridorJoinOffset);
         return glm::vec3(linkedRoomCenterOffset, kRoomLargeBaseY, 0.0f);
+    }
+
+    glm::vec3 getLabRoomCenter()
+    {
+        const float linkedRoomCenterOffset = 2.0f * (kRoomLargeHalfExtent + kCorridorJoinOffset);
+        return getOxygenRoomCenter() + glm::vec3(0.0f, 0.0f, -linkedRoomCenterOffset);
     }
 }
 
@@ -57,40 +94,65 @@ TestRoomScene createTestRoomScene()
 {
     TestRoomScene scene;
     const glm::vec3 oxygenRoomCenter = getOxygenRoomCenter();
+    const glm::vec3 storageRoomCenter = getStorageRoomCenter();
+    const glm::vec3 controlRoomCenter = getControlRoomCenter();
     const glm::vec3 powerRoomCenter = getPowerRoomCenter();
+    const glm::vec3 labRoomCenter = getLabRoomCenter();
 
     scene.roomPlacements = {
         { glm::vec3(0.0f, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
         { oxygenRoomCenter, glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
-        { powerRoomCenter, glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) }
+        { storageRoomCenter, glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
+        { controlRoomCenter, glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
+        { powerRoomCenter, glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
+        { labRoomCenter, glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) }
     };
 
     scene.corridorPlacements = {
         { glm::vec3(0.0f, kRoomLargeBaseY, -kRoomLargeHalfExtent - kCorridorJoinOffset), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) },
         { glm::vec3(0.0f, kRoomLargeBaseY, kRoomLargeHalfExtent + kCorridorJoinOffset), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) },
         { glm::vec3(-kRoomLargeHalfExtent - kCorridorJoinOffset, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
-        { glm::vec3(kRoomLargeHalfExtent + kCorridorJoinOffset, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) }
+        { glm::vec3(kRoomLargeHalfExtent + kCorridorJoinOffset, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
+        { oxygenRoomCenter + glm::vec3(0.0f, 0.0f, -kRoomLargeHalfExtent - kCorridorJoinOffset), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) }
     };
 
     scene.gatePlacements = {
         { glm::vec3(0.0f, kRoomLargeBaseY, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
         { glm::vec3(kRoomLargeHalfExtent, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) },
         { oxygenRoomCenter + glm::vec3(0.0f, 0.0f, kRoomLargeHalfExtent), glm::vec3(1.0f), 180.0f, glm::vec3(1.0f) },
-        { powerRoomCenter + glm::vec3(-kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) }
+        { powerRoomCenter + glm::vec3(-kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
+        { glm::vec3(-kRoomLargeHalfExtent, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
+        { controlRoomCenter + glm::vec3(kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) }
     };
 
     scene.gateDoorPlacements = {
-        { glm::vec3(-kRoomLargeHalfExtent, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
+        { controlRoomCenter + glm::vec3(0.0f, 0.0f, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
+        { controlRoomCenter + glm::vec3(-kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
+        { controlRoomCenter + glm::vec3(0.0f, 0.0f, kRoomLargeHalfExtent), glm::vec3(1.0f), 180.0f, glm::vec3(1.0f) },
         { oxygenRoomCenter + glm::vec3(-kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
         { oxygenRoomCenter + glm::vec3(kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) },
+        { storageRoomCenter + glm::vec3(0.0f, 0.0f, kRoomLargeHalfExtent), glm::vec3(1.0f), 180.0f, glm::vec3(1.0f) },
+        { storageRoomCenter + glm::vec3(-kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
+        { storageRoomCenter + glm::vec3(kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) },
         { powerRoomCenter + glm::vec3(0.0f, 0.0f, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
         { powerRoomCenter + glm::vec3(0.0f, 0.0f, kRoomLargeHalfExtent), glm::vec3(1.0f), 180.0f, glm::vec3(1.0f) },
-        { powerRoomCenter + glm::vec3(kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) }
+        { powerRoomCenter + glm::vec3(kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) },
+        { labRoomCenter + glm::vec3(0.0f, 0.0f, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
+        { labRoomCenter + glm::vec3(-kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
+        { labRoomCenter + glm::vec3(kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) }
+    };
+
+    scene.controlUnlockGatePlacements = {
+        // Control door is temporarily open while checking Control room objects.
+        // { glm::vec3(-kRoomLargeHalfExtent, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
+        // { controlRoomCenter + glm::vec3(kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) }
     };
 
     scene.powerUnlockGatePlacements = {
         { glm::vec3(0.0f, kRoomLargeBaseY, kRoomLargeHalfExtent), glm::vec3(1.0f), 180.0f, glm::vec3(1.0f) },
-        { oxygenRoomCenter + glm::vec3(0.0f, 0.0f, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) }
+        { storageRoomCenter + glm::vec3(0.0f, 0.0f, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
+        { oxygenRoomCenter + glm::vec3(0.0f, 0.0f, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
+        { labRoomCenter + glm::vec3(0.0f, 0.0f, kRoomLargeHalfExtent), glm::vec3(1.0f), 180.0f, glm::vec3(1.0f) }
     };
 
     scene.oxygenConsolePlacement = {
@@ -105,6 +167,53 @@ TestRoomScene createTestRoomScene()
         kPowerConsoleScale,
         0.0f,
         kPowerConsoleColor
+    };
+
+    scene.storageNotePlacement = {
+        storageRoomCenter + glm::vec3(0.0f, 0.45f, 0.0f),
+        kStorageNoteScale,
+        0.0f,
+        kStorageNoteColor
+    };
+
+    scene.controlTerminalPlacement = {
+        controlRoomCenter + glm::vec3(-kRoomLargeHalfExtent + kControlComputerScreenWallInset, 0.0f, 0.0f),
+        glm::vec3(kControlComputerScreenScale),
+        90.0f,
+        kControlTerminalColor
+    };
+
+    const glm::vec3 labTableCorner =
+        labRoomCenter + glm::vec3(
+            -kRoomLargeHalfExtent + kLabTableDisplayCornerInset,
+            kRoomLargeBaseY,
+            -kRoomLargeHalfExtent + kLabTableDisplayCornerInset);
+    scene.labTableDisplayPlacements = {
+        { labTableCorner + glm::vec3(kLabTableDisplaySpacing, 1.3f, 0.0f), glm::vec3(kLabTableDisplayScale), 0.0f, glm::vec3(1.0f) },
+        { labTableCorner + glm::vec3(0.0f, 1.3f, kLabTableDisplaySpacing), glm::vec3(kLabTableDisplayScale), 90.0f, glm::vec3(1.0f) }
+    };
+
+    const glm::vec3 labSkipRocksCorner =
+        labRoomCenter + glm::vec3(
+            kRoomLargeHalfExtent - kLabCornerPropInset,
+            kRoomLargeBaseY,
+            -kRoomLargeHalfExtent + kLabCornerPropInset);
+    const glm::vec3 labRocksCorner =
+        labRoomCenter + glm::vec3(
+            kRoomLargeHalfExtent - 0.75f,
+            kRoomLargeBaseY,
+            -kRoomLargeHalfExtent + 0.75f);
+    scene.labSkipRocksPlacement = {
+        labSkipRocksCorner + glm::vec3(-kLabCornerPropSpacing, 0.3f, 0.0f),
+        glm::vec3(kLabSkipRocksScale),
+        90.0f,
+        glm::vec3(1.0f)
+    };
+    scene.labRocksPlacement = {
+        labRocksCorner + glm::vec3(0.0f, 0.5f, 0.0f),
+        glm::vec3(kLabRocksScale),
+        0.0f,
+        glm::vec3(1.0f)
     };
 
     const glm::vec3 bedCoverLocalOffset(-0.25f * kBedScale, 0.20f * kBedScale, 0.15f * kBedScale);
@@ -128,10 +237,13 @@ TestRoomScene createTestRoomScene()
     return scene;
 }
 
-void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool powerFixed)
+void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool powerFixed, bool controlUnlocked)
 {
     const glm::vec3 oxygenRoomCenter = getOxygenRoomCenter();
+    const glm::vec3 storageRoomCenter = getStorageRoomCenter();
+    const glm::vec3 controlRoomCenter = getControlRoomCenter();
     const glm::vec3 powerRoomCenter = getPowerRoomCenter();
+    const glm::vec3 labRoomCenter = getLabRoomCenter();
 
     auto addCorridorCollision = [&](const glm::vec3& position, bool alongZ)
     {
@@ -215,9 +327,24 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         oxygenRoomCenter + glm::vec3(kRoomLargeHalfExtent, 100.0f, kRoomLargeHalfExtent)
     });
     world.rooms.push_back({
+        "Storage",
+        storageRoomCenter + glm::vec3(-kRoomLargeHalfExtent, -100.0f, -kRoomLargeHalfExtent),
+        storageRoomCenter + glm::vec3(kRoomLargeHalfExtent, 100.0f, kRoomLargeHalfExtent)
+    });
+    world.rooms.push_back({
+        "Control Room",
+        controlRoomCenter + glm::vec3(-kRoomLargeHalfExtent, -100.0f, -kRoomLargeHalfExtent),
+        controlRoomCenter + glm::vec3(kRoomLargeHalfExtent, 100.0f, kRoomLargeHalfExtent)
+    });
+    world.rooms.push_back({
         "Power Room",
         powerRoomCenter + glm::vec3(-kRoomLargeHalfExtent, -100.0f, -kRoomLargeHalfExtent),
         powerRoomCenter + glm::vec3(kRoomLargeHalfExtent, 100.0f, kRoomLargeHalfExtent)
+    });
+    world.rooms.push_back({
+        "Lab",
+        labRoomCenter + glm::vec3(-kRoomLargeHalfExtent, -100.0f, -kRoomLargeHalfExtent),
+        labRoomCenter + glm::vec3(kRoomLargeHalfExtent, 100.0f, kRoomLargeHalfExtent)
     });
 
     auto addRoomCollision = [&](const glm::vec3& roomCenter, bool openNegZ, bool openPosZ, bool openNegX, bool openPosX)
@@ -279,14 +406,29 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
 
     addRoomCollision(glm::vec3(0.0f), true, true, true, true);
     addRoomCollision(oxygenRoomCenter, true, true, false, false);
+    addRoomCollision(storageRoomCenter, true, false, false, false);
+    addRoomCollision(controlRoomCenter, false, false, false, true);
     addRoomCollision(powerRoomCenter, false, false, true, false);
+    addRoomCollision(labRoomCenter, false, true, false, false);
     world.circleColliders.push_back({ kRoomLargePillarCenter, kRoomLargePillarRadius });
     world.circleColliders.push_back({
         oxygenRoomCenter + glm::vec3(kRoomLargePillarCenter.x, 0.0f, kRoomLargePillarCenter.z),
         kRoomLargePillarRadius
     });
     world.circleColliders.push_back({
+        storageRoomCenter + glm::vec3(kRoomLargePillarCenter.x, 0.0f, kRoomLargePillarCenter.z),
+        kRoomLargePillarRadius
+    });
+    world.circleColliders.push_back({
+        controlRoomCenter + glm::vec3(kRoomLargePillarCenter.x, 0.0f, kRoomLargePillarCenter.z),
+        kRoomLargePillarRadius
+    });
+    world.circleColliders.push_back({
         powerRoomCenter + glm::vec3(kRoomLargePillarCenter.x, 0.0f, kRoomLargePillarCenter.z),
+        kRoomLargePillarRadius
+    });
+    world.circleColliders.push_back({
+        labRoomCenter + glm::vec3(kRoomLargePillarCenter.x, 0.0f, kRoomLargePillarCenter.z),
         kRoomLargePillarRadius
     });
 
@@ -298,6 +440,35 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         });
     }
 
+    for (const auto& tableDisplayPlacement : scene.labTableDisplayPlacements)
+    {
+        const bool tableRunsAlongX =
+            std::abs(std::cos(glm::radians(tableDisplayPlacement.rotationY))) > 0.5f;
+        world.colliders.push_back({
+            tableDisplayPlacement.position + glm::vec3(0.0f, kLabTableDisplayHalfSize.y, 0.0f),
+            tableRunsAlongX
+                ? kLabTableDisplayHalfSize
+                : glm::vec3(kLabTableDisplayHalfSize.z, kLabTableDisplayHalfSize.y, kLabTableDisplayHalfSize.x)
+        });
+    }
+
+    auto addAxisAlignedRotatedCollider = [&](const ModelPlacement& placement, const glm::vec3& halfSize)
+    {
+        const bool runsAlongX = std::abs(std::cos(glm::radians(placement.rotationY))) > 0.5f;
+        world.colliders.push_back({
+            placement.position + glm::vec3(0.0f, halfSize.y, 0.0f),
+            runsAlongX
+                ? halfSize
+                : glm::vec3(halfSize.z, halfSize.y, halfSize.x)
+        });
+    };
+
+    addAxisAlignedRotatedCollider(scene.labSkipRocksPlacement, kLabSkipRocksHalfSize);
+    world.colliders.push_back({
+        scene.labRocksPlacement.position + kLabRocksCollisionCenterOffset + glm::vec3(0.0f, kLabRocksHalfSize.y, 0.0f),
+        kLabRocksHalfSize
+    });
+
     world.colliders.push_back({
         scene.oxygenConsolePlacement.position,
         scene.oxygenConsolePlacement.scale * 0.5f
@@ -306,6 +477,11 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         scene.powerConsolePlacement.position,
         scene.powerConsolePlacement.scale * 0.5f
     });
+    world.colliders.push_back({
+        scene.storageNotePlacement.position,
+        scene.storageNotePlacement.scale * 0.5f
+    });
+    addAxisAlignedRotatedCollider(scene.controlTerminalPlacement, kControlComputerScreenHalfSize);
 
     for (auto& interactable : world.interactables)
     {
@@ -323,12 +499,46 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
                 0.0f,
                 scene.powerConsolePlacement.position.z);
         }
+        else if (interactable.name == "storage_note")
+        {
+            interactable.pos = glm::vec3(
+                scene.storageNotePlacement.position.x,
+                0.0f,
+                scene.storageNotePlacement.position.z);
+        }
+        else if (interactable.name == "lab_decoder")
+        {
+            const ModelPlacement& labInteractTable = scene.labTableDisplayPlacements.front();
+            const glm::vec3 tableInteractOffset =
+                rotateOffsetY(glm::vec3(0.0f, 0.0f, kLabTableInteractForwardOffset), labInteractTable.rotationY);
+            interactable.pos = glm::vec3(
+                labInteractTable.position.x + tableInteractOffset.x,
+                0.0f,
+                labInteractTable.position.z + tableInteractOffset.z);
+        }
+        else if (interactable.name == "control_door")
+        {
+            interactable.pos = glm::vec3(
+                -kRoomLargeHalfExtent,
+                0.0f,
+                0.0f);
+        }
+        else if (interactable.name == "control_terminal")
+        {
+            const glm::vec3 computerInteractOffset =
+                rotateOffsetY(glm::vec3(0.0f, 0.0f, kControlComputerInteractOffset), scene.controlTerminalPlacement.rotationY);
+            interactable.pos = glm::vec3(
+                scene.controlTerminalPlacement.position.x + computerInteractOffset.x,
+                0.0f,
+                scene.controlTerminalPlacement.position.z + computerInteractOffset.z);
+        }
     }
 
     addCorridorCollision(scene.corridorPlacements[0].position, true);
     addCorridorCollision(scene.corridorPlacements[1].position, true);
     addCorridorCollision(scene.corridorPlacements[2].position, false);
     addCorridorCollision(scene.corridorPlacements[3].position, false);
+    addCorridorCollision(scene.corridorPlacements[4].position, true);
 
     for (const auto& gatePlacement : scene.gatePlacements)
         addGateFrameCollision(gatePlacement);
@@ -341,6 +551,13 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         else
             addGateDoorCollision(powerUnlockGatePlacement);
     }
+    for (const auto& controlUnlockGatePlacement : scene.controlUnlockGatePlacements)
+    {
+        if (controlUnlocked)
+            addGateFrameCollision(controlUnlockGatePlacement);
+        else
+            addGateDoorCollision(controlUnlockGatePlacement);
+    }
 
     std::cout << "Room-large test enabled"
         << " | boxColliders=" << world.colliders.size()
@@ -350,6 +567,7 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         << " | gates=" << scene.gatePlacements.size()
         << " | gateDoors=" << scene.gateDoorPlacements.size()
         << " | powerUnlockGates=" << scene.powerUnlockGatePlacements.size()
+        << " | controlUnlockGates=" << scene.controlUnlockGatePlacements.size()
         << " | beds=" << scene.bedPlacements.size()
         << "\n";
 }

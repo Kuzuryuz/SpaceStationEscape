@@ -23,12 +23,18 @@ struct TestRoomScene
     std::vector<ModelPlacement> gatePlacements;
     std::vector<ModelPlacement> gateDoorPlacements;
     std::vector<ModelPlacement> powerUnlockGatePlacements;
+    std::vector<ModelPlacement> controlUnlockGatePlacements;
     std::vector<ModelPlacement> bedPlacements;
     std::vector<ModelPlacement> bedCoverPlacements;
+    std::vector<ModelPlacement> labTableDisplayPlacements;
+    ModelPlacement labSkipRocksPlacement;
+    ModelPlacement labRocksPlacement;
     ModelPlacement oxygenConsolePlacement;
     ModelPlacement powerConsolePlacement;
+    ModelPlacement storageNotePlacement;
+    ModelPlacement controlTerminalPlacement;
     glm::vec3 playerStart{ 0.0f, 0.0f, 6.0f };
 };
 
 TestRoomScene createTestRoomScene();
-void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool powerFixed);
+void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool powerFixed, bool controlUnlocked);
