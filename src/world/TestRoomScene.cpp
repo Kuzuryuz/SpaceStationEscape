@@ -43,7 +43,7 @@ namespace
     glm::vec3 getOxygenRoomCenter()
     {
         const float linkedRoomCenterOffset = 2.0f * (kRoomLargeHalfExtent + kCorridorJoinOffset);
-        return glm::vec3(0.0f, kRoomLargeBaseY, linkedRoomCenterOffset);
+        return glm::vec3(0.0f, kRoomLargeBaseY, -linkedRoomCenterOffset);
     }
 
     glm::vec3 getPowerRoomCenter()
@@ -73,14 +73,14 @@ TestRoomScene createTestRoomScene()
     };
 
     scene.gatePlacements = {
-        { glm::vec3(0.0f, kRoomLargeBaseY, kRoomLargeHalfExtent), glm::vec3(1.0f), 180.0f, glm::vec3(1.0f) },
+        { glm::vec3(0.0f, kRoomLargeBaseY, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
         { glm::vec3(kRoomLargeHalfExtent, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) },
-        { oxygenRoomCenter + glm::vec3(0.0f, 0.0f, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
+        { oxygenRoomCenter + glm::vec3(0.0f, 0.0f, kRoomLargeHalfExtent), glm::vec3(1.0f), 180.0f, glm::vec3(1.0f) },
         { powerRoomCenter + glm::vec3(-kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) }
     };
 
     scene.gateDoorPlacements = {
-        { oxygenRoomCenter + glm::vec3(0.0f, 0.0f, kRoomLargeHalfExtent), glm::vec3(1.0f), 180.0f, glm::vec3(1.0f) },
+        { glm::vec3(-kRoomLargeHalfExtent, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
         { oxygenRoomCenter + glm::vec3(-kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
         { oxygenRoomCenter + glm::vec3(kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) },
         { powerRoomCenter + glm::vec3(0.0f, 0.0f, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
@@ -89,8 +89,8 @@ TestRoomScene createTestRoomScene()
     };
 
     scene.powerUnlockGatePlacements = {
-        { glm::vec3(0.0f, kRoomLargeBaseY, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
-        { glm::vec3(-kRoomLargeHalfExtent, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) }
+        { glm::vec3(0.0f, kRoomLargeBaseY, kRoomLargeHalfExtent), glm::vec3(1.0f), 180.0f, glm::vec3(1.0f) },
+        { oxygenRoomCenter + glm::vec3(0.0f, 0.0f, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) }
     };
 
     scene.oxygenConsolePlacement = {
@@ -278,7 +278,7 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
     };
 
     addRoomCollision(glm::vec3(0.0f), true, true, true, true);
-    addRoomCollision(oxygenRoomCenter, true, false, false, false);
+    addRoomCollision(oxygenRoomCenter, true, true, false, false);
     addRoomCollision(powerRoomCenter, false, false, true, false);
     world.circleColliders.push_back({ kRoomLargePillarCenter, kRoomLargePillarRadius });
     world.circleColliders.push_back({

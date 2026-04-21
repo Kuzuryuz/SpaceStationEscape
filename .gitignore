@@ -29,7 +29,6 @@ build.ninja
 *.VC.VC.opendb
 
 # MSVC / linker outputs
-*.obj
 *.ipdb
 *.iobj
 *.pdb
