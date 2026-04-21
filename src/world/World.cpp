@@ -24,6 +24,17 @@ namespace
     glm::vec3 kWallColor(0.48f, 0.52f, 0.60f);
     glm::vec3 kCorridorColor(0.18f, 0.20f, 0.24f);
     glm::vec3 kRoomFloorColor(0.13f, 0.15f, 0.19f);
+
+    bool intersectsSphereBox(const glm::vec3& sphereCenter, float radius, const BoxCollider& box)
+    {
+        const glm::vec3 closestPoint = glm::clamp(
+            sphereCenter,
+            box.center - box.halfSize,
+            box.center + box.halfSize
+        );
+        const glm::vec3 delta = sphereCenter - closestPoint;
+        return glm::dot(delta, delta) <= radius * radius;
+    }
 }
 
 void World::setGameState(GameState* state)
@@ -356,7 +367,7 @@ void World::buildDefaultRoom()
     interactables.push_back({
         "storage_note",
         glm::vec3(0.0f, 0.0f, 8.0f),
-        1.7f,
+        1.0f,
         [this]()
         {
             if (!gameState)
@@ -525,6 +536,29 @@ bool World::collidesWithWorld(const glm::vec3& testPos, float playerRadius) cons
     for (const auto& door : doors)
     {
         if (!door.open && intersectsCircleBoxXZ(testPos, playerRadius, { door.center, door.halfSize }))
+            return true;
+    }
+
+    return false;
+}
+
+bool World::collidesWithCamera(const glm::vec3& cameraPos, float cameraRadius) const
+{
+    for (const auto& box : colliders)
+    {
+        if (intersectsSphereBox(cameraPos, cameraRadius, box))
+            return true;
+    }
+
+    for (const auto& circle : circleColliders)
+    {
+        if (intersectsCircleCircleXZ(cameraPos, cameraRadius, circle.center, circle.radius))
+            return true;
+    }
+
+    for (const auto& door : doors)
+    {
+        if (!door.open && intersectsSphereBox(cameraPos, cameraRadius, { door.center, door.halfSize }))
             return true;
     }
 

@@ -36,8 +36,10 @@ struct TestRoomScene
     ModelPlacement labRocksPlacement;
     ModelPlacement oxygenConsolePlacement;
     ModelPlacement powerConsolePlacement;
-    ModelPlacement storageNotePlacement;
     ModelPlacement controlTerminalPlacement;
+    std::vector<ModelPlacement> controlComputerPlacements;
+    std::vector<ModelPlacement> controlComputerWidePlacements;
+    std::vector<ModelPlacement> controlDisplayWallWidePlacements;
     glm::vec3 playerStart{ 0.0f, 0.0f, 6.0f };
 };
 

@@ -71,6 +71,7 @@ public:
     void rebuildColliders();
 
     bool collidesWithWorld(const glm::vec3& testPos, float playerRadius) const;
+    bool collidesWithCamera(const glm::vec3& cameraPos, float cameraRadius) const;
 
     int getCurrentRoomIndex(const glm::vec3& playerPos) const;
 

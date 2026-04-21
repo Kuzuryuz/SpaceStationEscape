@@ -32,10 +32,10 @@ namespace
     constexpr float kStorageLongContainerScale = 1.45f;
     constexpr float kStoragePropWallInset = 2.1f;
     constexpr float kStoragePropSideOffset = 5.4f;
-    const glm::vec3 kStorageContainerHalfSize(0.45f, 0.45f, 2.9f);
-    const glm::vec3 kStorageContainerFlatHalfSize(0.75f, 0.55f, 1.1f);
-    const glm::vec3 kStorageContainerTallHalfSize(0.8f, 1.0f, 0.8f);
-    const glm::vec3 kStorageContainerWideHalfSize(0.9f, 0.8f, 0.9f);
+    const glm::vec3 kStorageContainerHalfSize(0.65f, 0.45f, 0.65f);
+    const glm::vec3 kStorageContainerFlatHalfSize(0.9f, 0.55f, 1.4f);
+    const glm::vec3 kStorageContainerTallHalfSize(1.0f, 1.0f, 1.0f);
+    const glm::vec3 kStorageContainerWideHalfSize(1.0f, 0.8f, 1.0f);
     constexpr float kLabTableDisplayScale = 3.0f;
     constexpr float kLabTableDisplayCornerInset = 1.75f;
     constexpr float kLabTableDisplaySpacing = 3.0f;
@@ -52,6 +52,12 @@ namespace
     constexpr float kControlComputerScreenWallInset = 1.5f;
     constexpr float kControlComputerInteractOffset = 2.2f;
     const glm::vec3 kControlComputerScreenHalfSize(1.6f, 1.0f, 1.0f);
+    constexpr float kControlComputerSideSpacing = 2.0f;
+    constexpr float kControlComputerWideSideSpacing = 4.0f;
+    const glm::vec3 kControlComputerHalfSize(1.3f, 0.9f, 1.1f);
+    const glm::vec3 kControlComputerWideHalfSize(1.7f, 0.9f, 1.2f);
+    constexpr float kControlDisplayWallWideHeight = 2.0f;
+    constexpr float kStorageNoteInteractBackOffset = 2.0f;
     const glm::vec3 kOxygenConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kOxygenConsoleColor(0.78f, 0.78f, 0.20f);
     const glm::vec3 kPowerConsoleScale(1.4f, 1.5f, 0.9f);
@@ -174,14 +180,7 @@ TestRoomScene createTestRoomScene()
         kPowerConsoleColor
     };
 
-    scene.storageNotePlacement = {
-        storageRoomCenter + glm::vec3(0.0f, 0.45f, 0.0f),
-        kStorageNoteScale,
-        0.0f,
-        kStorageNoteColor
-    };
-
-    const float storagePropY = kRoomLargeBaseY + 0.05f;
+    const float storagePropY = kRoomLargeBaseY + 0.55f;
     scene.storageContainerPlacements = {
         { storageRoomCenter + glm::vec3(-kStoragePropSideOffset, storagePropY, kRoomLargeHalfExtent - kStoragePropWallInset), glm::vec3(kStorageLongContainerScale), 90.0f, glm::vec3(1.0f) },
         { storageRoomCenter + glm::vec3(-kRoomLargeHalfExtent + kStoragePropWallInset, storagePropY, kStoragePropSideOffset), glm::vec3(kStorageLongContainerScale), 0.0f, glm::vec3(1.0f) }
@@ -206,6 +205,48 @@ TestRoomScene createTestRoomScene()
         glm::vec3(kControlComputerScreenScale),
         90.0f,
         kControlTerminalColor
+    };
+    scene.controlComputerPlacements = {
+        {
+            scene.controlTerminalPlacement.position + glm::vec3(0.0f, 0.0f, -kControlComputerSideSpacing),
+            glm::vec3(kControlComputerScreenScale),
+            90.0f,
+            glm::vec3(1.0f)
+        },
+        {
+            scene.controlTerminalPlacement.position + glm::vec3(0.0f, 0.0f, kControlComputerSideSpacing),
+            glm::vec3(kControlComputerScreenScale),
+            90.0f,
+            glm::vec3(1.0f)
+        }
+    };
+    scene.controlComputerWidePlacements = {
+        {
+            scene.controlTerminalPlacement.position + glm::vec3(-0.5f, 0.0f, -kControlComputerWideSideSpacing),
+            glm::vec3(kControlComputerScreenScale),
+            90.0f,
+            glm::vec3(1.0f)
+        },
+        {
+            scene.controlTerminalPlacement.position + glm::vec3(-0.5f, 0.0f, kControlComputerWideSideSpacing),
+            glm::vec3(kControlComputerScreenScale),
+            90.0f,
+            glm::vec3(1.0f)
+        }
+    };
+    scene.controlDisplayWallWidePlacements = {
+        {
+            scene.controlComputerWidePlacements[0].position + glm::vec3(-1.0f, kControlDisplayWallWideHeight, 0.0f),
+            glm::vec3(kControlComputerScreenScale),
+            90.0f,
+            glm::vec3(1.0f)
+        },
+        {
+            scene.controlComputerWidePlacements[1].position + glm::vec3(-1.0f, kControlDisplayWallWideHeight, 0.0f),
+            glm::vec3(kControlComputerScreenScale),
+            90.0f,
+            glm::vec3(1.0f)
+        }
     };
 
     const glm::vec3 labTableCorner =
@@ -258,6 +299,8 @@ TestRoomScene createTestRoomScene()
     addBedSet(glm::vec3(kRoomLargeHalfExtent - kCornerFurnitureInset, bedY, -kRoomLargeHalfExtent + kCornerFurnitureInset), 0.0f);
     addBedSet(glm::vec3(-kRoomLargeHalfExtent + kCornerFurnitureInset, bedY, kRoomLargeHalfExtent - kCornerFurnitureInset), 180.0f);
     addBedSet(glm::vec3(kRoomLargeHalfExtent - kCornerFurnitureInset, bedY, kRoomLargeHalfExtent - kCornerFurnitureInset), 180.0f);
+
+    scene.playerStart = glm::vec3(0.0f);
 
     return scene;
 }
@@ -513,11 +556,11 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         scene.powerConsolePlacement.position,
         scene.powerConsolePlacement.scale * 0.5f
     });
-    world.colliders.push_back({
-        scene.storageNotePlacement.position,
-        scene.storageNotePlacement.scale * 0.5f
-    });
     addAxisAlignedRotatedCollider(scene.controlTerminalPlacement, kControlComputerScreenHalfSize);
+    for (const auto& placement : scene.controlComputerPlacements)
+        addAxisAlignedRotatedCollider(placement, kControlComputerHalfSize);
+    for (const auto& placement : scene.controlComputerWidePlacements)
+        addAxisAlignedRotatedCollider(placement, kControlComputerWideHalfSize);
 
     for (auto& interactable : world.interactables)
     {
@@ -537,10 +580,13 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         }
         else if (interactable.name == "storage_note")
         {
+            const ModelPlacement& storageNoteContainer = scene.storageContainerFlatOpenPlacements.front();
+            const glm::vec3 noteInteractOffset =
+                rotateOffsetY(glm::vec3(0.0f, 0.0f, kStorageNoteInteractBackOffset), storageNoteContainer.rotationY);
             interactable.pos = glm::vec3(
-                scene.storageNotePlacement.position.x,
+                storageNoteContainer.position.x + noteInteractOffset.x,
                 0.0f,
-                scene.storageNotePlacement.position.z);
+                storageNoteContainer.position.z + noteInteractOffset.z);
         }
         else if (interactable.name == "lab_decoder")
         {

@@ -33,7 +33,11 @@ float playerYaw = 90.0f;
 float cameraYaw = -90.0f;
 float cameraPitch = -20.0f;
 float cameraDistance = 4.5f;
+float currentCameraDistance = cameraDistance;
 float cameraHeightOffset = 1.5f;
+float cameraCollisionRadius = 0.18f;
+float cameraCollisionSkin = 0.08f;
+float cameraMinHeight = 0.35f;
 float mouseSensitivity = 0.12f;
 
 bool firstMouse = true;
@@ -130,6 +134,47 @@ glm::vec3 getCameraRightXZ()
 {
     glm::vec3 forward = getCameraForwardXZ();
     return glm::normalize(glm::cross(forward, glm::vec3(0.0f, 1.0f, 0.0f)));
+}
+
+float resolveCameraCollisionDistance(const glm::vec3& cameraTarget, const glm::vec3& cameraBackward, float desiredDistance)
+{
+    constexpr int kCameraCollisionSweepSteps = 24;
+    constexpr int kCameraCollisionRefineSteps = 8;
+
+    float clearDistance = 0.0f;
+    float blockedDistance = desiredDistance;
+    bool foundBlocker = false;
+
+    for (int i = 1; i <= kCameraCollisionSweepSteps; i++)
+    {
+        const float testDistance = desiredDistance * static_cast<float>(i) / static_cast<float>(kCameraCollisionSweepSteps);
+        const glm::vec3 testPos = cameraTarget + cameraBackward * testDistance;
+
+        if (world.collidesWithCamera(testPos, cameraCollisionRadius))
+        {
+            blockedDistance = testDistance;
+            foundBlocker = true;
+            break;
+        }
+
+        clearDistance = testDistance;
+    }
+
+    if (!foundBlocker)
+        return desiredDistance;
+
+    for (int i = 0; i < kCameraCollisionRefineSteps; i++)
+    {
+        const float testDistance = (clearDistance + blockedDistance) * 0.5f;
+        const glm::vec3 testPos = cameraTarget + cameraBackward * testDistance;
+
+        if (world.collidesWithCamera(testPos, cameraCollisionRadius))
+            blockedDistance = testDistance;
+        else
+            clearDistance = testDistance;
+    }
+
+    return glm::max(0.0f, clearDistance - cameraCollisionSkin);
 }
 
 void tryMovePlayer(glm::vec3 moveDelta)
@@ -966,6 +1011,9 @@ int main()
     StaticModel skipRocks(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/skip-rocks.obj");
     StaticModel rocks(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/rocks.obj");
     StaticModel computerScreen(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer-screen.obj");
+    StaticModel computer(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer.obj");
+    StaticModel computerWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer-wide.obj");
+    StaticModel displayWallWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/display-wall-wide.obj");
     TestRoomScene testRoomScene = createTestRoomScene();
 
     world.buildDefaultRoom();
@@ -1080,7 +1128,19 @@ int main()
 
         glm::vec3 cameraForward3D = getCameraForward3D();
         glm::vec3 cameraTarget = playerPos + glm::vec3(0.0f, cameraHeightOffset, 0.0f);
-        glm::vec3 cameraPos = cameraTarget - cameraForward3D * cameraDistance;
+        glm::vec3 cameraBackward = -cameraForward3D;
+        float targetCameraDistance = resolveCameraCollisionDistance(cameraTarget, cameraBackward, cameraDistance);
+        if (targetCameraDistance < currentCameraDistance)
+        {
+            currentCameraDistance = targetCameraDistance;
+        }
+        else
+        {
+            const float cameraReturnAlpha = 1.0f - std::exp(-10.0f * deltaTime);
+            currentCameraDistance = glm::mix(currentCameraDistance, targetCameraDistance, cameraReturnAlpha);
+        }
+        glm::vec3 cameraPos = cameraTarget + cameraBackward * currentCameraDistance;
+        cameraPos.y = glm::max(cameraPos.y, cameraMinHeight);
 
         glClearColor(0.03f, 0.03f, 0.07f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1147,6 +1207,12 @@ int main()
             drawStaticModel(skipRocks, testRoomScene.labSkipRocksPlacement);
             drawStaticModel(rocks, testRoomScene.labRocksPlacement);
             drawStaticModel(computerScreen, testRoomScene.controlTerminalPlacement);
+            for (const auto& placement : testRoomScene.controlComputerPlacements)
+                drawStaticModel(computer, placement);
+            for (const auto& placement : testRoomScene.controlComputerWidePlacements)
+                drawStaticModel(computerWide, placement);
+            for (const auto& placement : testRoomScene.controlDisplayWallWidePlacements)
+                drawStaticModel(displayWallWide, placement);
 
             auto drawInteractableCube = [&](const std::string& id, const ModelPlacement& placement, const glm::vec3& color)
             {
@@ -1166,11 +1232,6 @@ int main()
                 ? glm::vec3(0.25f, 1.0f, 0.35f)
                 : testRoomScene.powerConsolePlacement.color;
             drawInteractableCube("power_console", testRoomScene.powerConsolePlacement, powerConsoleColor);
-
-            glm::vec3 storageNoteColor = gameState.foundNote
-                ? glm::vec3(0.25f, 1.0f, 0.35f)
-                : testRoomScene.storageNotePlacement.color;
-            drawInteractableCube("storage_note", testRoomScene.storageNotePlacement, storageNoteColor);
 
         }
         else
