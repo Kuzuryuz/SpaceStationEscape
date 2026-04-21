@@ -100,6 +100,33 @@ void AnimatedCharacter::update(float deltaSeconds, bool restart)
     updateAnimationPose();
 }
 
+double AnimatedCharacter::getNormalizedTime() const
+{
+    const double durationSeconds = getAnimationDurationSeconds();
+    if (durationSeconds <= 0.0)
+        return 0.0;
+
+    if (looping)
+        return std::fmod(clipTimeSeconds, durationSeconds) / durationSeconds;
+
+    return std::clamp(clipTimeSeconds / durationSeconds, 0.0, 1.0);
+}
+
+void AnimatedCharacter::setNormalizedTime(double normalizedTime)
+{
+    const double durationSeconds = getAnimationDurationSeconds();
+    if (durationSeconds <= 0.0)
+        return;
+
+    const double clampedNormalizedTime = looping
+        ? std::fmod(std::fmod(normalizedTime, 1.0) + 1.0, 1.0)
+        : std::clamp(normalizedTime, 0.0, 1.0);
+
+    clipTimeSeconds = clampedNormalizedTime * durationSeconds;
+    finished = !looping && clipTimeSeconds >= durationSeconds;
+    updateAnimationPose();
+}
+
 void AnimatedCharacter::draw(
     Shader& shader,
     const glm::mat4& view,
@@ -421,13 +448,27 @@ void AnimatedCharacter::readNodeHierarchy(double animationTimeTicks, const aiNod
         return;
 
     glm::mat4 nodeTransform = toGlm(node->mTransformation);
+    const glm::vec3 bindTranslation = glm::vec3(nodeTransform[3]);
     const aiNodeAnim* nodeAnim = findNodeAnim(animation, node->mName.C_Str());
 
     if (nodeAnim)
     {
         const glm::vec3 scaling = interpolateScaling(animationTimeTicks, nodeAnim);
         const glm::quat rotation = interpolateRotation(animationTimeTicks, nodeAnim);
-        const glm::vec3 translation = interpolatePosition(animationTimeTicks, nodeAnim);
+        glm::vec3 translation = interpolatePosition(animationTimeTicks, nodeAnim);
+
+        const std::string nodeName = node->mName.C_Str();
+        const bool isRootMotionNode =
+            nodeName == "mixamorig:Hips" ||
+            nodeName == "Hips" ||
+            nodeName == "Armature";
+
+        if (looping && isRootMotionNode)
+        {
+            // Keep the locomotion cycle planted in place and let gameplay code move the character.
+            translation.x = bindTranslation.x;
+            translation.z = bindTranslation.z;
+        }
 
         nodeTransform =
             glm::translate(glm::mat4(1.0f), translation) *
@@ -500,6 +541,22 @@ glm::vec3 AnimatedCharacter::interpolatePosition(double animationTimeTicks, cons
         }
     }
 
+    if (looping && animation && nodeAnim->mNumPositionKeys > 1)
+    {
+        const aiVectorKey& last = nodeAnim->mPositionKeys[nodeAnim->mNumPositionKeys - 1];
+        const aiVectorKey& first = nodeAnim->mPositionKeys[0];
+        const double wrappedNextTime = animation->mDuration + first.mTime;
+        const double span = wrappedNextTime - last.mTime;
+        const float factor = span > 0.0
+            ? static_cast<float>((animationTimeTicks - last.mTime) / span)
+            : 0.0f;
+
+        return glm::mix(
+            toGlm(last.mValue),
+            toGlm(first.mValue),
+            glm::clamp(factor, 0.0f, 1.0f));
+    }
+
     return toGlm(nodeAnim->mPositionKeys[nodeAnim->mNumPositionKeys - 1].mValue);
 }
 
@@ -530,6 +587,22 @@ glm::quat AnimatedCharacter::interpolateRotation(double animationTimeTicks, cons
         }
     }
 
+    if (looping && animation && nodeAnim->mNumRotationKeys > 1)
+    {
+        const aiQuatKey& last = nodeAnim->mRotationKeys[nodeAnim->mNumRotationKeys - 1];
+        const aiQuatKey& first = nodeAnim->mRotationKeys[0];
+        const double wrappedNextTime = animation->mDuration + first.mTime;
+        const double span = wrappedNextTime - last.mTime;
+        const float factor = span > 0.0
+            ? static_cast<float>((animationTimeTicks - last.mTime) / span)
+            : 0.0f;
+
+        return glm::normalize(glm::slerp(
+            toGlm(last.mValue),
+            toGlm(first.mValue),
+            glm::clamp(factor, 0.0f, 1.0f)));
+    }
+
     return glm::normalize(toGlm(nodeAnim->mRotationKeys[nodeAnim->mNumRotationKeys - 1].mValue));
 }
 
@@ -558,6 +631,22 @@ glm::vec3 AnimatedCharacter::interpolateScaling(double animationTimeTicks, const
                 toGlm(next.mValue),
                 glm::clamp(factor, 0.0f, 1.0f));
         }
+    }
+
+    if (looping && animation && nodeAnim->mNumScalingKeys > 1)
+    {
+        const aiVectorKey& last = nodeAnim->mScalingKeys[nodeAnim->mNumScalingKeys - 1];
+        const aiVectorKey& first = nodeAnim->mScalingKeys[0];
+        const double wrappedNextTime = animation->mDuration + first.mTime;
+        const double span = wrappedNextTime - last.mTime;
+        const float factor = span > 0.0
+            ? static_cast<float>((animationTimeTicks - last.mTime) / span)
+            : 0.0f;
+
+        return glm::mix(
+            toGlm(last.mValue),
+            toGlm(first.mValue),
+            glm::clamp(factor, 0.0f, 1.0f));
     }
 
     return toGlm(nodeAnim->mScalingKeys[nodeAnim->mNumScalingKeys - 1].mValue);

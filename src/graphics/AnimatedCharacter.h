@@ -44,6 +44,9 @@ public:
     bool isLoaded() const { return loaded; }
     std::string getError() const { return loadError; }
     bool isFinished() const { return finished; }
+    bool isLooping() const { return looping; }
+    double getNormalizedTime() const;
+    void setNormalizedTime(double normalizedTime);
 
 private:
     static constexpr int kMaxWeightsPerVertex = 4;
