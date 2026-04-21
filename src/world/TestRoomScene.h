@@ -26,6 +26,11 @@ struct TestRoomScene
     std::vector<ModelPlacement> controlUnlockGatePlacements;
     std::vector<ModelPlacement> bedPlacements;
     std::vector<ModelPlacement> bedCoverPlacements;
+    std::vector<ModelPlacement> storageContainerPlacements;
+    std::vector<ModelPlacement> storageContainerFlatPlacements;
+    std::vector<ModelPlacement> storageContainerFlatOpenPlacements;
+    std::vector<ModelPlacement> storageContainerTallPlacements;
+    std::vector<ModelPlacement> storageContainerWidePlacements;
     std::vector<ModelPlacement> labTableDisplayPlacements;
     ModelPlacement labSkipRocksPlacement;
     ModelPlacement labRocksPlacement;

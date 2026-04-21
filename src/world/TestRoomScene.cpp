@@ -28,6 +28,14 @@ namespace
         kRoomLargeDoorOpeningHalfWidth + kGateFramePostHalfWidth;
     constexpr float kCornerFurnitureInset = 2.9f;
     constexpr float kBedScale = 4.0f;
+    constexpr float kStoragePropScale = 2.0f;
+    constexpr float kStorageLongContainerScale = 1.45f;
+    constexpr float kStoragePropWallInset = 2.1f;
+    constexpr float kStoragePropSideOffset = 5.4f;
+    const glm::vec3 kStorageContainerHalfSize(0.45f, 0.45f, 2.9f);
+    const glm::vec3 kStorageContainerFlatHalfSize(0.75f, 0.55f, 1.1f);
+    const glm::vec3 kStorageContainerTallHalfSize(0.8f, 1.0f, 0.8f);
+    const glm::vec3 kStorageContainerWideHalfSize(0.9f, 0.8f, 0.9f);
     constexpr float kLabTableDisplayScale = 3.0f;
     constexpr float kLabTableDisplayCornerInset = 1.75f;
     constexpr float kLabTableDisplaySpacing = 3.0f;
@@ -120,9 +128,7 @@ TestRoomScene createTestRoomScene()
         { glm::vec3(0.0f, kRoomLargeBaseY, -kRoomLargeHalfExtent), glm::vec3(1.0f), 0.0f, glm::vec3(1.0f) },
         { glm::vec3(kRoomLargeHalfExtent, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) },
         { oxygenRoomCenter + glm::vec3(0.0f, 0.0f, kRoomLargeHalfExtent), glm::vec3(1.0f), 180.0f, glm::vec3(1.0f) },
-        { powerRoomCenter + glm::vec3(-kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
-        { glm::vec3(-kRoomLargeHalfExtent, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
-        { controlRoomCenter + glm::vec3(kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) }
+        { powerRoomCenter + glm::vec3(-kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) }
     };
 
     scene.gateDoorPlacements = {
@@ -143,9 +149,8 @@ TestRoomScene createTestRoomScene()
     };
 
     scene.controlUnlockGatePlacements = {
-        // Control door is temporarily open while checking Control room objects.
-        // { glm::vec3(-kRoomLargeHalfExtent, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
-        // { controlRoomCenter + glm::vec3(kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) }
+        { glm::vec3(-kRoomLargeHalfExtent, kRoomLargeBaseY, 0.0f), glm::vec3(1.0f), -90.0f, glm::vec3(1.0f) },
+        { controlRoomCenter + glm::vec3(kRoomLargeHalfExtent, 0.0f, 0.0f), glm::vec3(1.0f), 90.0f, glm::vec3(1.0f) }
     };
 
     scene.powerUnlockGatePlacements = {
@@ -174,6 +179,26 @@ TestRoomScene createTestRoomScene()
         kStorageNoteScale,
         0.0f,
         kStorageNoteColor
+    };
+
+    const float storagePropY = kRoomLargeBaseY + 0.05f;
+    scene.storageContainerPlacements = {
+        { storageRoomCenter + glm::vec3(-kStoragePropSideOffset, storagePropY, kRoomLargeHalfExtent - kStoragePropWallInset), glm::vec3(kStorageLongContainerScale), 90.0f, glm::vec3(1.0f) },
+        { storageRoomCenter + glm::vec3(-kRoomLargeHalfExtent + kStoragePropWallInset, storagePropY, kStoragePropSideOffset), glm::vec3(kStorageLongContainerScale), 0.0f, glm::vec3(1.0f) }
+    };
+    scene.storageContainerFlatPlacements = {
+        { storageRoomCenter + glm::vec3(kStoragePropSideOffset, storagePropY, kRoomLargeHalfExtent - kStoragePropWallInset), glm::vec3(kStoragePropScale), 90.0f, glm::vec3(1.0f) },
+        { storageRoomCenter + glm::vec3(-kStoragePropSideOffset, storagePropY, -kRoomLargeHalfExtent + kStoragePropWallInset), glm::vec3(kStoragePropScale), -90.0f, glm::vec3(1.0f) }
+    };
+    scene.storageContainerFlatOpenPlacements = {
+        { storageRoomCenter + glm::vec3(kRoomLargeHalfExtent - kStoragePropWallInset, storagePropY, -kStoragePropSideOffset), glm::vec3(kStoragePropScale), 0.0f, glm::vec3(1.0f) }
+    };
+    scene.storageContainerTallPlacements = {
+        { storageRoomCenter + glm::vec3(-kRoomLargeHalfExtent + kStoragePropWallInset, storagePropY, -kStoragePropSideOffset), glm::vec3(kStoragePropScale), 25.0f, glm::vec3(1.0f) },
+        { storageRoomCenter + glm::vec3(kRoomLargeHalfExtent - kStoragePropWallInset, storagePropY, kStoragePropSideOffset), glm::vec3(kStoragePropScale), -20.0f, glm::vec3(1.0f) }
+    };
+    scene.storageContainerWidePlacements = {
+        { storageRoomCenter + glm::vec3(kStoragePropSideOffset, storagePropY, -kRoomLargeHalfExtent + kStoragePropWallInset), glm::vec3(kStoragePropScale), -90.0f, glm::vec3(1.0f) }
     };
 
     scene.controlTerminalPlacement = {
@@ -462,6 +487,17 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
                 : glm::vec3(halfSize.z, halfSize.y, halfSize.x)
         });
     };
+
+    for (const auto& placement : scene.storageContainerPlacements)
+        addAxisAlignedRotatedCollider(placement, kStorageContainerHalfSize);
+    for (const auto& placement : scene.storageContainerFlatPlacements)
+        addAxisAlignedRotatedCollider(placement, kStorageContainerFlatHalfSize);
+    for (const auto& placement : scene.storageContainerFlatOpenPlacements)
+        addAxisAlignedRotatedCollider(placement, kStorageContainerFlatHalfSize);
+    for (const auto& placement : scene.storageContainerTallPlacements)
+        addAxisAlignedRotatedCollider(placement, kStorageContainerTallHalfSize);
+    for (const auto& placement : scene.storageContainerWidePlacements)
+        addAxisAlignedRotatedCollider(placement, kStorageContainerWideHalfSize);
 
     addAxisAlignedRotatedCollider(scene.labSkipRocksPlacement, kLabSkipRocksHalfSize);
     world.colliders.push_back({

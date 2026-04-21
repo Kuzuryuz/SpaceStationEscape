@@ -936,6 +936,11 @@ int main()
     StaticModel gateDoor(std::string(PROJECT_ROOT) + "/assets/models/ModularSpaceKit/gate-door.obj");
     StaticModel bedDouble(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/bed-double.obj");
     StaticModel bedDoubleCover(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/bed-double-cover.obj");
+    StaticModel container(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/container.obj");
+    StaticModel containerFlat(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/container-flat.obj");
+    StaticModel containerFlatOpen(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/container-flat-open.obj");
+    StaticModel containerTall(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/container-tall.obj");
+    StaticModel containerWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/container-wide.obj");
     StaticModel tableDisplay(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/table-display.obj");
     StaticModel skipRocks(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/skip-rocks.obj");
     StaticModel rocks(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/rocks.obj");
@@ -1084,6 +1089,16 @@ int main()
                 drawStaticModel(bedDouble, bedPlacement);
             for (const auto& bedCoverPlacement : testRoomScene.bedCoverPlacements)
                 drawStaticModel(bedDoubleCover, bedCoverPlacement);
+            for (const auto& placement : testRoomScene.storageContainerPlacements)
+                drawStaticModel(container, placement);
+            for (const auto& placement : testRoomScene.storageContainerFlatPlacements)
+                drawStaticModel(containerFlat, placement);
+            for (const auto& placement : testRoomScene.storageContainerFlatOpenPlacements)
+                drawStaticModel(containerFlatOpen, placement);
+            for (const auto& placement : testRoomScene.storageContainerTallPlacements)
+                drawStaticModel(containerTall, placement);
+            for (const auto& placement : testRoomScene.storageContainerWidePlacements)
+                drawStaticModel(containerWide, placement);
             for (const auto& labTableDisplayPlacement : testRoomScene.labTableDisplayPlacements)
                 drawStaticModel(tableDisplay, labTableDisplayPlacement);
             drawStaticModel(skipRocks, testRoomScene.labSkipRocksPlacement);
