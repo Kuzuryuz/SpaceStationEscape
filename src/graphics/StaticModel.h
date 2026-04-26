@@ -20,6 +20,7 @@ public:
         glm::vec3 position{ 0.0f };
         glm::vec3 normal{ 0.0f, 1.0f, 0.0f };
         glm::vec2 uv{ 0.0f };
+        float partMask = 0.0f;
     };
 
     explicit StaticModel(const std::string& modelPath);
@@ -33,6 +34,7 @@ public:
     glm::vec3 getBoundsSize() const { return maxBounds - minBounds; }
 
     void Draw(Shader& shader) const;
+    void DrawPartColored(Shader& shader, const glm::vec3& pipeColor, const glm::vec3& ringColor) const;
 
 private:
     void load(const std::string& modelPath);
@@ -40,6 +42,8 @@ private:
 
     std::vector<Vertex> vertices;
     std::vector<unsigned int> indices;
+    GLsizei pipeIndexCount = 0;
+    GLsizei ringIndexCount = 0;
     std::unique_ptr<Texture> diffuseTexture;
 
     GLuint vao = 0;

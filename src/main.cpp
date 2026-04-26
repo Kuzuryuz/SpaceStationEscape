@@ -10,8 +10,10 @@
 #include <string>
 #include <array>
 #include <vector>
+#include <memory>
 
 #include "graphics/AnimatedCharacter.h"
+#include "graphics/AnimatedObjectPlayer.h"
 #include "graphics/Shader.h"
 #include "graphics/StaticModel.h"
 #include "world/World.h"
@@ -102,6 +104,7 @@ bool seenFoundNote = false;
 bool seenHasCode = false;
 bool seenControlUnlocked = false;
 bool seenGameFinished = false;
+bool seenPlayerDeath = false;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
@@ -222,7 +225,7 @@ void processInput(GLFWwindow* window)
     playerDanceTriggered = onePressedNow && !onePressedLastFrame;
     onePressedLastFrame = onePressedNow;
 
-    if (gameState.gameFinished)
+    if (gameState.gameFinished || gameState.playerDied)
     {
         playerIsMoving = false;
         playerIsRunning = false;
@@ -302,7 +305,7 @@ void updateStoryEvents()
         introQueued = true;
         queueSubtitle("WARNING THE STATION HAS BEEN DAMAGED", 3.2f);
         queueSubtitle("OXYGEN LEVELS ARE FALLING FAST", 3.2f);
-        queueSubtitle("REACH THE OXYGEN CONSOLE AND REPAIR IT NOW", 3.4f);
+        queueSubtitle("THE OXYGEN LINES NEED TO BE STABILIZED", 3.4f);
     }
 
     if (gameState.oxygenFixed && !seenOxygenFixed)
@@ -346,16 +349,28 @@ void updateStoryEvents()
         queueSubtitle("MOVE TO THE FINAL SWITCH AND GET OUT", 3.0f);
     }
 
-    if (gameState.gameFinished && !seenGameFinished)
+    if (gameState.gameFinished && !gameState.playerDied && !seenGameFinished)
     {
         seenGameFinished = true;
         queueSubtitle("THE EXIT IS OPEN", 2.4f);
         queueSubtitle("YOU MADE IT OUT ALIVE", 3.0f);
     }
+
+    if (gameState.playerDied && !seenPlayerDeath)
+    {
+        seenPlayerDeath = true;
+        subtitleQueue.clear();
+        currentSubtitle.clear();
+        subtitleTimer = 0.0f;
+        queueSubtitle("WRONG VALVE ORDER", 2.3f);
+        queueSubtitle("THE OXYGEN CHAMBER VENTED", 2.8f);
+        queueSubtitle("YOU DIED", 2.6f);
+    }
 }
 
 std::string getObjectiveText()
 {
+    if (gameState.playerDied) return "OXYGEN FAILURE";
     if (!gameState.oxygenFixed) return "FIX OXYGEN SYSTEM";
     if (!gameState.powerFixed) return "RESTORE POWER";
     if (!gameState.foundNote) return "SEARCH STORAGE";
@@ -367,15 +382,15 @@ std::string getObjectiveText()
 
 void updateInteractPrompt()
 {
-    nearestInteractableIndex = world.getNearestObjectiveInteractableIndex(playerPos);
-    showInteractPrompt = (nearestInteractableIndex != -1) && !gameState.gameFinished;
+    nearestInteractableIndex = world.getNearestInteractableIndex(playerPos);
+    showInteractPrompt = (nearestInteractableIndex != -1) && !gameState.gameFinished && !gameState.playerDied;
 }
 
 void handleInteraction(GLFWwindow* window)
 {
     bool ePressedNow = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
 
-    if (ePressedNow && !ePressedLastFrame && !gameState.gameFinished)
+    if (ePressedNow && !ePressedLastFrame && !gameState.gameFinished && !gameState.playerDied)
     {
         world.tryInteract(playerPos);
     }
@@ -481,6 +496,36 @@ const std::array<std::string, 7>& getGlyph(char c)
     static const std::array<std::string, 7> Z = {
         "11111","00001","00010","00100","01000","10000","11111"
     };
+    static const std::array<std::string, 7> ZERO = {
+        "01110","10001","10011","10101","11001","10001","01110"
+    };
+    static const std::array<std::string, 7> ONE = {
+        "00100","01100","00100","00100","00100","00100","01110"
+    };
+    static const std::array<std::string, 7> TWO = {
+        "01110","10001","00001","00010","00100","01000","11111"
+    };
+    static const std::array<std::string, 7> THREE = {
+        "11110","00001","00001","01110","00001","00001","11110"
+    };
+    static const std::array<std::string, 7> FOUR = {
+        "00010","00110","01010","10010","11111","00010","00010"
+    };
+    static const std::array<std::string, 7> FIVE = {
+        "11111","10000","10000","11110","00001","00001","11110"
+    };
+    static const std::array<std::string, 7> SIX = {
+        "01110","10000","10000","11110","10001","10001","01110"
+    };
+    static const std::array<std::string, 7> SEVEN = {
+        "11111","00001","00010","00100","01000","01000","01000"
+    };
+    static const std::array<std::string, 7> EIGHT = {
+        "01110","10001","10001","01110","10001","10001","01110"
+    };
+    static const std::array<std::string, 7> NINE = {
+        "01110","10001","10001","01111","00001","00001","01110"
+    };
 
     switch (c)
     {
@@ -510,6 +555,16 @@ const std::array<std::string, 7>& getGlyph(char c)
     case 'X': return X;
     case 'Y': return Y;
     case 'Z': return Z;
+    case '0': return ZERO;
+    case '1': return ONE;
+    case '2': return TWO;
+    case '3': return THREE;
+    case '4': return FOUR;
+    case '5': return FIVE;
+    case '6': return SIX;
+    case '7': return SEVEN;
+    case '8': return EIGHT;
+    case '9': return NINE;
     case ' ': return SPACE;
     default:  return SPACE;
     }
@@ -742,7 +797,7 @@ void drawSubtitle(Shader& hudShader, unsigned int quadVAO)
 
 void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
 {
-    if (!gameState.gameFinished)
+    if (!gameState.gameFinished && !gameState.playerDied)
         return;
 
     hudShader.use();
@@ -751,8 +806,9 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
 
     drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT, glm::vec3(0.01f, 0.02f, 0.03f));
 
-    const std::string title = "MISSION COMPLETE";
-    const std::string subtitle = "YOU ESCAPED";
+    const bool playerLost = gameState.playerDied;
+    const std::string title = playerLost ? "MISSION FAILED" : "MISSION COMPLETE";
+    const std::string subtitle = playerLost ? "OXYGEN DEPLETED" : "YOU ESCAPED";
     const std::string hint = "PRESS ESC TO EXIT";
 
     float titlePixel = 6.0f;
@@ -766,7 +822,7 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
         (SCR_WIDTH - getTextWidth(title, titlePixel, titlePixel)) * 0.5f,
         240.0f,
         titlePixel,
-        glm::vec3(0.85f, 0.97f, 1.0f)
+        playerLost ? glm::vec3(1.0f, 0.78f, 0.78f) : glm::vec3(0.85f, 0.97f, 1.0f)
     );
 
     drawTextHUD(
@@ -776,7 +832,7 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
         (SCR_WIDTH - getTextWidth(subtitle, subtitlePixel, subtitlePixel)) * 0.5f,
         320.0f,
         subtitlePixel,
-        glm::vec3(0.35f, 1.0f, 0.65f)
+        playerLost ? glm::vec3(1.0f, 0.32f, 0.32f) : glm::vec3(0.35f, 1.0f, 0.65f)
     );
 
     drawTextHUD(
@@ -977,7 +1033,9 @@ int main()
             glDrawArrays(GL_TRIANGLES, 0, 36);
         };
 
-    auto drawStaticModel = [&](StaticModel& modelAsset, const ModelPlacement& placement)
+    const glm::vec3 oxygenPipeBodyColor(0.75f, 0.78f, 0.94f);
+
+    auto drawStaticModel = [&](StaticModel& modelAsset, const ModelPlacement& placement, bool usePartColors = false)
         {
             if (!modelAsset.isLoaded())
                 return;
@@ -990,10 +1048,16 @@ int main()
             model = glm::scale(model, placement.scale);
 
             staticModelShader.setMat4("model", model);
-            staticModelShader.setVec3("tintColor", glm::vec3(1.0f));
+            staticModelShader.setVec3("tintColor", placement.color);
+            staticModelShader.setInt("usePartColors", usePartColors ? 1 : 0);
+            staticModelShader.setVec3("partBaseColor", oxygenPipeBodyColor);
+            staticModelShader.setVec3("partAccentColor", placement.color);
             staticModelShader.setVec3("lightDir", glm::normalize(glm::vec3(-0.35f, -1.0f, -0.15f)));
             staticModelShader.setVec3("ambientColor", glm::vec3(0.72f, 0.70f, 0.82f));
-            modelAsset.Draw(staticModelShader);
+            if (usePartColors)
+                modelAsset.DrawPartColored(staticModelShader, oxygenPipeBodyColor, placement.color);
+            else
+                modelAsset.Draw(staticModelShader);
         };
 
     StaticModel roomLarge(std::string(PROJECT_ROOT) + "/assets/models/ModularSpaceKit/room-large.obj");
@@ -1014,6 +1078,27 @@ int main()
     StaticModel computer(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer.obj");
     StaticModel computerWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer-wide.obj");
     StaticModel displayWallWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/display-wall-wide.obj");
+    StaticModel oxygenPipeUp(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/pipe-up.obj");
+    StaticModel oxygenPipeDown(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/pipe-down.obj");
+    const std::string puzzleTexture =
+        std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/Textures/colormap.png";
+    const std::string oxygenAnimationPath =
+        std::string(PROJECT_ROOT) + "/assets/animation/object/pipe-animated.fbx";
+    const std::string oxygenAnimationName = "ring|pipe-ring-colored.001Action";
+    std::array<std::unique_ptr<AnimatedObjectPlayer>, GameState::kOxygenValveCount> oxygenAnimatedPipes;
+    std::array<bool, GameState::kOxygenValveCount> oxygenAnimatedPipeStarted{ false, false, false };
+    for (int i = 0; i < GameState::kOxygenValveCount; ++i)
+    {
+        oxygenAnimatedPipes[i] = std::make_unique<AnimatedObjectPlayer>(
+            oxygenAnimationPath,
+            puzzleTexture,
+            false,
+            oxygenAnimationName
+        );
+
+        if (!oxygenAnimatedPipes[i]->isLoaded())
+            std::cerr << "Oxygen animated pipe failed: " << oxygenAnimatedPipes[i]->getError() << "\n";
+    }
     TestRoomScene testRoomScene = createTestRoomScene();
 
     world.buildDefaultRoom();
@@ -1029,6 +1114,7 @@ int main()
     bool testRoomPowerFixedState = gameState.powerFixed;
     bool testRoomControlUnlockedState = gameState.controlUnlocked;
     PlayerAnimationState currentAnimationState = PlayerAnimationState::Idle;
+    std::array<bool, GameState::kOxygenValveCount> previousOxygenValveStates = gameState.oxygenValvesOpened;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -1089,6 +1175,26 @@ int main()
         playerIsDancing = (currentAnimationState == PlayerAnimationState::Dance);
         updateInteractPrompt();
         handleInteraction(window);
+        for (int valveIndex = 0; valveIndex < GameState::kOxygenValveCount; ++valveIndex)
+        {
+            if (gameState.oxygenValvesOpened[valveIndex] && !previousOxygenValveStates[valveIndex])
+            {
+                oxygenAnimatedPipeStarted[valveIndex] = true;
+                if (oxygenAnimatedPipes[valveIndex] && oxygenAnimatedPipes[valveIndex]->isLoaded())
+                    oxygenAnimatedPipes[valveIndex]->update(0.0f, true);
+            }
+
+            previousOxygenValveStates[valveIndex] = gameState.oxygenValvesOpened[valveIndex];
+
+            if (oxygenAnimatedPipeStarted[valveIndex] &&
+                oxygenAnimatedPipes[valveIndex] &&
+                oxygenAnimatedPipes[valveIndex]->isLoaded() &&
+                !oxygenAnimatedPipes[valveIndex]->isFinished())
+            {
+                oxygenAnimatedPipes[valveIndex]->update(deltaTime);
+            }
+        }
+
         if (kTemplateRoomTestMode &&
             (testRoomPowerFixedState != gameState.powerFixed ||
              testRoomControlUnlockedState != gameState.controlUnlocked))
@@ -1120,7 +1226,7 @@ int main()
             }
         }
 
-        if (gameState.gameFinished && !winPrinted)
+        if (gameState.gameFinished && !gameState.playerDied && !winPrinted)
         {
             std::cout << "YOU WIN\n";
             winPrinted = true;
@@ -1202,6 +1308,49 @@ int main()
                 drawStaticModel(containerTall, placement);
             for (const auto& placement : testRoomScene.storageContainerWidePlacements)
                 drawStaticModel(containerWide, placement);
+            for (int valveIndex = 0; valveIndex < static_cast<int>(testRoomScene.oxygenValvePlacements.size()); ++valveIndex)
+            {
+                ModelPlacement valvePlacement = testRoomScene.oxygenValvePlacements[valveIndex];
+                const bool hasAnimatedPipe =
+                    oxygenAnimatedPipes[valveIndex] &&
+                    oxygenAnimatedPipes[valveIndex]->isLoaded();
+                const bool animationStarted = oxygenAnimatedPipeStarted[valveIndex];
+                const bool animationFinished =
+                    animationStarted &&
+                    oxygenAnimatedPipes[valveIndex] &&
+                    oxygenAnimatedPipes[valveIndex]->isFinished();
+
+                if (gameState.playerDied)
+                {
+                    valvePlacement.color = glm::vec3(1.0f, 0.18f, 0.18f);
+                }
+
+                if (!animationStarted)
+                {
+                    drawStaticModel(oxygenPipeUp, valvePlacement, true);
+                }
+                else if (hasAnimatedPipe && !animationFinished)
+                {
+                    glm::mat4 oxygenPipeBaseMatrix = glm::mat4(1.0f);
+                    oxygenPipeBaseMatrix = glm::translate(oxygenPipeBaseMatrix, valvePlacement.position);
+                    oxygenPipeBaseMatrix = glm::rotate(oxygenPipeBaseMatrix, glm::radians(valvePlacement.rotationY), glm::vec3(0.0f, 1.0f, 0.0f));
+                    oxygenPipeBaseMatrix = glm::scale(oxygenPipeBaseMatrix, valvePlacement.scale);
+                    oxygenAnimatedPipes[valveIndex]->draw(
+                        characterShader,
+                        view,
+                        projection,
+                        oxygenPipeBaseMatrix,
+                        valvePlacement.color
+                    );
+                }
+                else
+                {
+                    StaticModel& oxygenPipeModel = gameState.oxygenValvesOpened[valveIndex]
+                        ? oxygenPipeDown
+                        : oxygenPipeUp;
+                    drawStaticModel(oxygenPipeModel, valvePlacement, true);
+                }
+            }
             for (const auto& labTableDisplayPlacement : testRoomScene.labTableDisplayPlacements)
                 drawStaticModel(tableDisplay, labTableDisplayPlacement);
             drawStaticModel(skipRocks, testRoomScene.labSkipRocksPlacement);
@@ -1222,11 +1371,6 @@ int main()
 
                 drawCube(placement.position, placement.scale, drawColor, placement.rotationY);
             };
-
-            glm::vec3 oxygenConsoleColor = gameState.oxygenFixed
-                ? glm::vec3(0.2f, 1.0f, 0.2f)
-                : testRoomScene.oxygenConsolePlacement.color;
-            drawInteractableCube("oxygen_console", testRoomScene.oxygenConsolePlacement, oxygenConsoleColor);
 
             glm::vec3 powerConsoleColor = gameState.powerFixed
                 ? glm::vec3(0.25f, 1.0f, 0.35f)

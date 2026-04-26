@@ -2,6 +2,7 @@
 
 #include <glm/common.hpp>
 #include <cmath>
+#include <array>
 #include <iostream>
 #include <limits>
 #include <vector>
@@ -40,6 +41,17 @@ namespace
 void World::setGameState(GameState* state)
 {
     gameState = state;
+}
+
+int World::findInteractableIndexByName(const std::string& name) const
+{
+    for (int i = 0; i < static_cast<int>(interactables.size()); ++i)
+    {
+        if (interactables[i].name == name)
+            return i;
+    }
+
+    return -1;
 }
 
 void World::addObject(const std::string& id, glm::vec3 pos, glm::vec3 scale, glm::vec3 color, bool hasCollision, float rotationY)
@@ -312,22 +324,65 @@ void World::buildDefaultRoom()
     rooms.push_back({ "Oxygen Room", glm::vec3(oxygenMinX, -100.0f, oxygenMinZ), glm::vec3(oxygenMaxX, 100.0f, oxygenMaxZ) });
     rooms.push_back({ "Lab", glm::vec3(labMinX, -100.0f, labMinZ), glm::vec3(labMaxX, 100.0f, labMaxZ) });
 
-    interactables.push_back({
-        "oxygen_console",
-        glm::vec3(0.0f, 0.0f, -8.0f),
-        1.9f,
-        [this]()
-        {
-            if (!gameState || gameState->oxygenFixed)
-            {
-                std::cout << "Oxygen already stable\n";
-                return;
-            }
+    const std::array<glm::vec3, GameState::kOxygenValveCount> oxygenValvePositions = {
+        glm::vec3(-2.5f, 0.0f, -7.45f),
+        glm::vec3(0.0f, 0.0f, -7.45f),
+        glm::vec3(2.5f, 0.0f, -7.45f)
+    };
+    const std::array<int, GameState::kOxygenValveCount> oxygenValveOrder = { 1, 2, 0 };
 
-            gameState->oxygenFixed = true;
-            std::cout << "Oxygen fixed\n";
-        }
-    });
+    for (int valveNumber = 0; valveNumber < GameState::kOxygenValveCount; ++valveNumber)
+    {
+        interactables.push_back({
+            "oxygen_valve_" + std::to_string(valveNumber + 1),
+            oxygenValvePositions[valveNumber],
+            1.4f,
+            [this, valveNumber, oxygenValveOrder]()
+            {
+                if (!gameState)
+                    return;
+
+                if (gameState->playerDied)
+                {
+                    std::cout << "No response. Oxygen failure already triggered\n";
+                    return;
+                }
+
+                if (gameState->oxygenFixed)
+                {
+                    std::cout << "Oxygen already stable\n";
+                    return;
+                }
+
+                const int expectedValve = oxygenValveOrder[gameState->oxygenValveProgress];
+                if (valveNumber != expectedValve)
+                {
+                    gameState->oxygenPuzzleFailed = true;
+                    gameState->playerDied = true;
+                    gameState->gameFinished = true;
+                    std::cout << "Wrong valve order. Oxygen purge failed\n";
+                    std::cout << "The chamber vented and the player died\n";
+                    return;
+                }
+
+                if (gameState->oxygenValvesOpened[valveNumber])
+                {
+                    std::cout << "Valve already opened\n";
+                    return;
+                }
+
+                gameState->oxygenValvesOpened[valveNumber] = true;
+                ++gameState->oxygenValveProgress;
+                std::cout << "Valve " << (valveNumber + 1) << " aligned\n";
+
+                if (gameState->oxygenValveProgress >= GameState::kOxygenValveCount)
+                {
+                    gameState->oxygenFixed = true;
+                    std::cout << "Oxygen fixed\n";
+                }
+            }
+        });
+    }
 
     interactables.push_back({
         "power_console",
@@ -610,12 +665,20 @@ int World::getCurrentObjectiveInteractableIndex() const
     if (!gameState)
         return -1;
 
-    if (!gameState->oxygenFixed) return 0;
-    if (!gameState->powerFixed) return 1;
-    if (!gameState->foundNote) return 2;
-    if (!gameState->hasCode) return 3;
-    if (!gameState->controlUnlocked) return 4;
-    if (!gameState->gameFinished) return 5;
+    if (gameState->playerDied)
+        return -1;
+
+    if (!gameState->oxygenFixed)
+    {
+        static const std::array<int, GameState::kOxygenValveCount> oxygenValveOrder = { 1, 2, 0 };
+        return findInteractableIndexByName(
+            "oxygen_valve_" + std::to_string(oxygenValveOrder[gameState->oxygenValveProgress] + 1));
+    }
+    if (!gameState->powerFixed) return findInteractableIndexByName("power_console");
+    if (!gameState->foundNote) return findInteractableIndexByName("storage_note");
+    if (!gameState->hasCode) return findInteractableIndexByName("lab_decoder");
+    if (!gameState->controlUnlocked) return findInteractableIndexByName("control_door");
+    if (!gameState->gameFinished) return findInteractableIndexByName("control_terminal");
 
     return -1;
 }
@@ -646,9 +709,9 @@ bool World::isNearCurrentObjectiveInteractable(const glm::vec3& playerPos) const
 
 void World::tryInteract(const glm::vec3& playerPos)
 {
-    int objectiveIndex = getNearestObjectiveInteractableIndex(playerPos);
-    if (objectiveIndex == -1)
+    int nearestIndex = getNearestInteractableIndex(playerPos);
+    if (nearestIndex == -1)
         return;
 
-    interactables[objectiveIndex].onInteract();
+    interactables[nearestIndex].onInteract();
 }

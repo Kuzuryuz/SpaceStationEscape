@@ -60,6 +60,8 @@ namespace
     constexpr float kStorageNoteInteractBackOffset = 2.0f;
     const glm::vec3 kOxygenConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kOxygenConsoleColor(0.78f, 0.78f, 0.20f);
+    constexpr float kOxygenValveHeight = -0.05f;
+    constexpr float kOxygenValveScale = 1.45f;
     const glm::vec3 kPowerConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kPowerConsoleColor(0.20f, 0.55f, 0.95f);
     const glm::vec3 kStorageNoteScale(0.9f, 0.9f, 0.9f);
@@ -167,10 +169,15 @@ TestRoomScene createTestRoomScene()
     };
 
     scene.oxygenConsolePlacement = {
-        oxygenRoomCenter + glm::vec3(0.0f, 1.0f, 0.0f),
+        oxygenRoomCenter + glm::vec3(0.0f, 1.0f, 4.9f),
         kOxygenConsoleScale,
         0.0f,
         kOxygenConsoleColor
+    };
+    scene.oxygenValvePlacements = {
+        { oxygenRoomCenter + glm::vec3(-2.5f, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(1.0f, 0.30f, 0.24f) },
+        { oxygenRoomCenter + glm::vec3(0.0f, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(0.20f, 0.58f, 1.0f) },
+        { oxygenRoomCenter + glm::vec3(2.5f, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(0.25f, 0.95f, 0.38f) }
     };
 
     scene.powerConsolePlacement = {
@@ -549,13 +556,16 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
     });
 
     world.colliders.push_back({
-        scene.oxygenConsolePlacement.position,
-        scene.oxygenConsolePlacement.scale * 0.5f
-    });
-    world.colliders.push_back({
         scene.powerConsolePlacement.position,
         scene.powerConsolePlacement.scale * 0.5f
     });
+    for (const auto& placement : scene.oxygenValvePlacements)
+    {
+        world.colliders.push_back({
+            placement.position + glm::vec3(0.0f, 0.7f, 0.0f),
+            glm::vec3(0.65f, 0.75f, 0.65f)
+        });
+    }
     addAxisAlignedRotatedCollider(scene.controlTerminalPlacement, kControlComputerScreenHalfSize);
     for (const auto& placement : scene.controlComputerPlacements)
         addAxisAlignedRotatedCollider(placement, kControlComputerHalfSize);
@@ -570,6 +580,17 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
                 scene.oxygenConsolePlacement.position.x,
                 0.0f,
                 scene.oxygenConsolePlacement.position.z);
+        }
+        else if (interactable.name.rfind("oxygen_valve_", 0) == 0)
+        {
+            const int valveIndex = interactable.name.back() - '1';
+            if (valveIndex >= 0 && valveIndex < static_cast<int>(scene.oxygenValvePlacements.size()))
+            {
+                interactable.pos = glm::vec3(
+                    scene.oxygenValvePlacements[valveIndex].position.x,
+                    0.0f,
+                    scene.oxygenValvePlacements[valveIndex].position.z);
+            }
         }
         else if (interactable.name == "power_console")
         {

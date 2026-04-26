@@ -51,11 +51,13 @@ add_executable(SpaceStationEscape
     "src/graphics/StaticModel.cpp"
     "src/graphics/Texture.cpp"
     "src/graphics/AnimatedCharacter.cpp"
+    "src/graphics/AnimatedObjectPlayer.cpp"
     "src/world/World.cpp"
     "src/world/TestRoomScene.cpp"
     "src/graphics/StaticModel.h"
     "src/graphics/Texture.h"
     "src/graphics/AnimatedCharacter.h"
+    "src/graphics/AnimatedObjectPlayer.h"
     "src/world/TestRoomScene.h"
     "src/GameState.h")
 

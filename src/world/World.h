@@ -85,6 +85,7 @@ public:
     void setGameState(GameState* state);
 
 private:
+    int findInteractableIndexByName(const std::string& name) const;
     void addObject(const std::string& id, glm::vec3 pos, glm::vec3 scale, glm::vec3 color, bool hasCollision, float rotationY = 0.0f);
     void addRoomFloor(const std::string& id, float minX, float maxX, float minZ, float maxZ, const glm::vec3& color);
     void addHorizontalWallRun(const std::string& idPrefix, float startX, float endX, float z, const glm::vec3& color);
