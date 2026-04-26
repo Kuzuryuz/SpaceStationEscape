@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 
 #include <glm/glm.hpp>
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
@@ -11,6 +12,7 @@
 #include <array>
 #include <vector>
 #include <memory>
+#include <algorithm>
 
 #include "graphics/AnimatedCharacter.h"
 #include "graphics/AnimatedObjectPlayer.h"
@@ -22,6 +24,8 @@
 
 static const unsigned int SCR_WIDTH = 1280;
 static const unsigned int SCR_HEIGHT = 720;
+static const std::string kControlDoorCode = "0427";
+static const std::array<int, 3> kLabStabilizerTarget{ 2, 7, 3 };
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -48,12 +52,31 @@ float lastMouseY = SCR_HEIGHT * 0.5f;
 
 bool ePressedLastFrame = false;
 bool onePressedLastFrame = false;
+bool f3PressedLastFrame = false;
+bool enterPressedLastFrame = false;
+bool spacePressedLastFrame = false;
+bool backspacePressedLastFrame = false;
+bool escapePressedLastFrame = false;
+bool upPressedLastFrame = false;
+bool downPressedLastFrame = false;
+bool leftPressedLastFrame = false;
+bool rightPressedLastFrame = false;
+std::array<bool, 10> digitPressedLastFrame{ false, false, false, false, false, false, false, false, false, false };
+bool showCollisionDebug = false;
+bool gameStarted = false;
 bool showInteractPrompt = false;
 int nearestInteractableIndex = -1;
 bool playerIsMoving = false;
 bool playerIsRunning = false;
 bool playerDanceTriggered = false;
 bool playerIsDancing = false;
+bool controlCodePanelOpen = false;
+bool controlCodeRejected = false;
+std::string controlCodeInput = "";
+bool labStabilizerPanelOpen = false;
+bool labStabilizerRejected = false;
+std::array<int, 3> labStabilizerValues{ 0, 0, 0 };
+int labStabilizerSelected = 0;
 
 enum class PlayerAnimationState
 {
@@ -105,6 +128,33 @@ bool seenHasCode = false;
 bool seenControlUnlocked = false;
 bool seenGameFinished = false;
 bool seenPlayerDeath = false;
+
+void unlockControlRoomFromCode()
+{
+    gameState.controlUnlocked = true;
+    controlCodePanelOpen = false;
+    controlCodeRejected = false;
+    controlCodeInput.clear();
+
+    for (auto& door : world.doors)
+    {
+        if (door.name == "Control Door")
+        {
+            door.open = true;
+            break;
+        }
+    }
+
+    std::cout << "Control room unlocked\n";
+}
+
+void completeLabStabilization()
+{
+    gameState.hasCode = true;
+    labStabilizerPanelOpen = false;
+    labStabilizerRejected = false;
+    std::cout << "AI: Trace markings decoded\n";
+}
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
@@ -218,12 +268,127 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 
 void processInput(GLFWwindow* window)
 {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
+    const bool escapePressedNow = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
+    if (escapePressedNow && !escapePressedLastFrame)
+    {
+        if (controlCodePanelOpen)
+        {
+            controlCodePanelOpen = false;
+            controlCodeRejected = false;
+            controlCodeInput.clear();
+        }
+        else if (labStabilizerPanelOpen)
+        {
+            labStabilizerPanelOpen = false;
+            labStabilizerRejected = false;
+        }
+        else
+        {
+            glfwSetWindowShouldClose(window, true);
+        }
+    }
+    escapePressedLastFrame = escapePressedNow;
+
+    const bool f3PressedNow = glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS;
+    if (f3PressedNow && !f3PressedLastFrame)
+    {
+        showCollisionDebug = !showCollisionDebug;
+        std::cout << "Collision debug " << (showCollisionDebug ? "enabled" : "disabled") << "\n";
+    }
+    f3PressedLastFrame = f3PressedNow;
 
     const bool onePressedNow = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
     playerDanceTriggered = onePressedNow && !onePressedLastFrame;
     onePressedLastFrame = onePressedNow;
+
+    if (controlCodePanelOpen)
+    {
+        for (int digit = 0; digit < 10; ++digit)
+        {
+            const bool digitPressedNow = glfwGetKey(window, GLFW_KEY_0 + digit) == GLFW_PRESS ||
+                glfwGetKey(window, GLFW_KEY_KP_0 + digit) == GLFW_PRESS;
+            if (digitPressedNow && !digitPressedLastFrame[digit] && controlCodeInput.size() < kControlDoorCode.size())
+            {
+                controlCodeInput.push_back(static_cast<char>('0' + digit));
+                controlCodeRejected = false;
+            }
+            digitPressedLastFrame[digit] = digitPressedNow;
+        }
+
+        const bool backspacePressedNow = glfwGetKey(window, GLFW_KEY_BACKSPACE) == GLFW_PRESS;
+        if (backspacePressedNow && !backspacePressedLastFrame && !controlCodeInput.empty())
+        {
+            controlCodeInput.pop_back();
+            controlCodeRejected = false;
+        }
+        backspacePressedLastFrame = backspacePressedNow;
+
+        const bool enterPressedNow = glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS ||
+            glfwGetKey(window, GLFW_KEY_KP_ENTER) == GLFW_PRESS;
+        if (enterPressedNow && !enterPressedLastFrame && controlCodeInput.size() == kControlDoorCode.size())
+        {
+            if (controlCodeInput == kControlDoorCode)
+            {
+                unlockControlRoomFromCode();
+            }
+            else
+            {
+                controlCodeRejected = true;
+                controlCodeInput.clear();
+                std::cout << "Wrong control room code\n";
+            }
+        }
+        enterPressedLastFrame = enterPressedNow;
+
+        playerIsMoving = false;
+        playerIsRunning = false;
+        playerDanceTriggered = false;
+        return;
+    }
+
+    if (labStabilizerPanelOpen)
+    {
+        const bool upPressedNow = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS;
+        const bool downPressedNow = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS;
+        const bool leftPressedNow = glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS;
+        const bool rightPressedNow = glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS;
+
+        if (upPressedNow && !upPressedLastFrame)
+            labStabilizerSelected = (labStabilizerSelected + 2) % 3;
+        if (downPressedNow && !downPressedLastFrame)
+            labStabilizerSelected = (labStabilizerSelected + 1) % 3;
+        if (leftPressedNow && !leftPressedLastFrame)
+        {
+            labStabilizerValues[labStabilizerSelected] = std::max(0, labStabilizerValues[labStabilizerSelected] - 1);
+            labStabilizerRejected = false;
+        }
+        if (rightPressedNow && !rightPressedLastFrame)
+        {
+            labStabilizerValues[labStabilizerSelected] = std::min(9, labStabilizerValues[labStabilizerSelected] + 1);
+            labStabilizerRejected = false;
+        }
+
+        upPressedLastFrame = upPressedNow;
+        downPressedLastFrame = downPressedNow;
+        leftPressedLastFrame = leftPressedNow;
+        rightPressedLastFrame = rightPressedNow;
+
+        const bool enterPressedNow = glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS ||
+            glfwGetKey(window, GLFW_KEY_KP_ENTER) == GLFW_PRESS;
+        if (enterPressedNow && !enterPressedLastFrame)
+        {
+            if (labStabilizerValues == kLabStabilizerTarget)
+                completeLabStabilization();
+            else
+                labStabilizerRejected = true;
+        }
+        enterPressedLastFrame = enterPressedNow;
+
+        playerIsMoving = false;
+        playerIsRunning = false;
+        playerDanceTriggered = false;
+        return;
+    }
 
     if (gameState.gameFinished || gameState.playerDied)
     {
@@ -278,6 +443,13 @@ void queueSubtitle(const std::string& text, float duration = 3.5f)
     subtitleQueue.push_back({ text, duration });
 }
 
+void interruptSubtitles()
+{
+    subtitleQueue.clear();
+    currentSubtitle.clear();
+    subtitleTimer = 0.0f;
+}
+
 void updateSubtitles()
 {
     if (currentSubtitle.empty() && !subtitleQueue.empty())
@@ -303,95 +475,146 @@ void updateStoryEvents()
     if (!introQueued)
     {
         introQueued = true;
-        queueSubtitle("WARNING THE STATION HAS BEEN DAMAGED", 3.2f);
-        queueSubtitle("OXYGEN LEVELS ARE FALLING FAST", 3.2f);
-        queueSubtitle("THE OXYGEN LINES NEED TO BE STABILIZED", 3.4f);
+        queueSubtitle("EMERGENCY AI PROTOCOL ACTIVATED", 3.0f);
+        queueSubtitle("A METEOR HAS STRUCK THE SPACESHIP", 3.4f);
+        queueSubtitle("ACCESS TO THE CONTROL ROOM IS REQUIRED TO STABILIZE THE SHIP AND OPEN THE ESCAPE ROUTE", 5.0f);
+        queueSubtitle("RUNNING DAMAGE DIAGNOSTICS...", 2.8f);
+        queueSubtitle("LIFE SUPPORT FAILURE DETECTED", 3.0f);
+        queueSubtitle("THE OXYGEN ROOM WAS DAMAGED BY THE IMPACT", 3.8f);
+        queueSubtitle("REPAIR IT BEFORE THE CREW SUFFOCATES", 3.6f);
     }
 
     if (gameState.oxygenFixed && !seenOxygenFixed)
     {
         seenOxygenFixed = true;
-        queueSubtitle("OXYGEN FLOW IS STABLE AGAIN", 2.8f);
-        queueSubtitle("WAIT THE POWER SYSTEM IS FAILING", 3.0f);
-        queueSubtitle("RESTORE POWER BEFORE THE STATION SHUTS DOWN", 3.2f);
+        interruptSubtitles();
+        queueSubtitle("OXYGEN FLOW STABILIZED", 2.8f);
+        queueSubtitle("RUNNING DAMAGE DIAGNOSTICS...", 2.8f);
+        queueSubtitle("....MAIN....POWER....DOWN.....", 3.2f);
+        queueSubtitle("......RESTORE....POWER....", 3.2f);
     }
 
     if (gameState.powerFixed && !seenPowerFixed)
     {
         seenPowerFixed = true;
-        queueSubtitle("POWER HAS BEEN RESTORED", 2.8f);
-        queueSubtitle("STORAGE AND LAB ACCESS ARE BACK ONLINE", 3.0f);
-        queueSubtitle("THE CONTROL ROOM MAY NEED A CODE", 3.0f);
-        queueSubtitle("SEARCH STORAGE FOR ANY CLUE", 3.0f);
+        interruptSubtitles();
+        queueSubtitle("MAIN POWER RESTORED", 2.8f);
+        queueSubtitle("SYSTEMS REBOOTING...", 2.8f);
+        queueSubtitle("RUNNING DAMAGE DIAGNOSTICS...", 2.8f);
+        queueSubtitle("NO ADDITIONAL DAMAGE DETECTED", 3.2f);
+        queueSubtitle("RUNNING ACCESS CHECK...", 2.8f);
+        queueSubtitle("STORAGE ACCESS ONLINE", 2.8f);
+        queueSubtitle("LAB ACCESS ONLINE", 2.8f);
+        queueSubtitle("CONTROL ROOM ACCESS DENIED", 3.2f);
     }
 
     if (gameState.foundNote && !seenFoundNote)
     {
         seenFoundNote = true;
-        queueSubtitle("THIS NOTE IS BLANK", 2.5f);
-        queueSubtitle("THERE MUST BE A WAY TO REVEAL THE MESSAGE", 3.0f);
-        queueSubtitle("CHECK THE LAB FOR SOMETHING USEFUL", 3.0f);
+        interruptSubtitles();
+        queueSubtitle("DOCUMENT RECOVERED", 2.6f);
+        queueSubtitle("SCANNING SURFACE...", 2.8f);
+        queueSubtitle("NO VISIBLE TEXT DETECTED", 3.0f);
+        queueSubtitle("TRACE MARKINGS FOUND", 2.8f);
+        queueSubtitle("LAB ANALYSIS REQUIRED", 3.0f);
     }
 
     if (gameState.hasCode && !seenHasCode)
     {
         seenHasCode = true;
-        queueSubtitle("THE CODE IS REVEALED", 2.5f);
-        queueSubtitle("GET TO THE CONTROL ROOM NOW", 2.8f);
-        queueSubtitle("ENTER THE CODE TO STOP THE DAMAGE AND OPEN THE EXIT", 3.8f);
+        interruptSubtitles();
+        queueSubtitle("DOCUMENT ANALYSIS...", 2.8f);
+        queueSubtitle("ANALYSIS COMPLETE", 2.8f);
+        queueSubtitle("TRACE MARKINGS DECODED", 3.0f);
+        queueSubtitle("CONTROL CODE " + kControlDoorCode, 3.2f);
     }
 
     if (gameState.controlUnlocked && !seenControlUnlocked)
     {
         seenControlUnlocked = true;
+        interruptSubtitles();
         queueSubtitle("CONTROL ROOM ACCESS GRANTED", 2.7f);
-        queueSubtitle("THE ESCAPE DOOR IS OPEN", 2.7f);
-        queueSubtitle("MOVE TO THE FINAL SWITCH AND GET OUT", 3.0f);
+        queueSubtitle("COMMAND ACCESS RESTORED", 2.8f);
+        queueSubtitle("AUTHORIZE ESCAPE ROUTE FROM THE TERMINAL", 3.6f);
     }
 
     if (gameState.gameFinished && !gameState.playerDied && !seenGameFinished)
     {
         seenGameFinished = true;
-        queueSubtitle("THE EXIT IS OPEN", 2.4f);
-        queueSubtitle("YOU MADE IT OUT ALIVE", 3.0f);
+        interruptSubtitles();
+        queueSubtitle("AUTHORIZING...", 2.4f);
+        queueSubtitle("ESCAPE ROUTE AUTHORIZED", 2.8f);
+        queueSubtitle("EVACUATION PATH OPEN", 2.8f);
+        queueSubtitle("CREW EVACUATION SUCCESSFUL", 3.0f);
     }
 
     if (gameState.playerDied && !seenPlayerDeath)
     {
         seenPlayerDeath = true;
-        subtitleQueue.clear();
-        currentSubtitle.clear();
-        subtitleTimer = 0.0f;
-        queueSubtitle("WRONG VALVE ORDER", 2.3f);
-        queueSubtitle("THE OXYGEN CHAMBER VENTED", 2.8f);
-        queueSubtitle("YOU DIED", 2.6f);
+        interruptSubtitles();
+        queueSubtitle("INCORRECT SEQUENCE DETECTED", 3.0f);
+        queueSubtitle("OXYGEN PURGE TRIGGERED", 2.8f);
+        queueSubtitle("ATMOSPHERIC PRESSURE LOST", 3.0f);
+        queueSubtitle("CREW VITAL SIGNS LOST", 2.8f);
     }
 }
 
 std::string getObjectiveText()
 {
-    if (gameState.playerDied) return "OXYGEN FAILURE";
-    if (!gameState.oxygenFixed) return "FIX OXYGEN SYSTEM";
+    if (gameState.playerDied) return "CREW LOST";
+    if (gameState.gameFinished) return "MISSION COMPLETE";
+    if (gameState.controlUnlocked) return "AUTHORIZE ESCAPE";
+    if (!gameState.oxygenFixed) return "FIX OXYGEN";
     if (!gameState.powerFixed) return "RESTORE POWER";
     if (!gameState.foundNote) return "SEARCH STORAGE";
-    if (!gameState.hasCode) return "CHECK LAB";
-    if (!gameState.controlUnlocked) return "UNLOCK CONTROL ROOM";
-    if (!gameState.gameFinished) return "ACTIVATE ESCAPE TERMINAL";
-    return "MISSION COMPLETE";
+    if (!gameState.hasCode) return "DECODE CLUE";
+    return "ENTER CONTROL CODE";
 }
 
 void updateInteractPrompt()
 {
     nearestInteractableIndex = world.getNearestInteractableIndex(playerPos);
-    showInteractPrompt = (nearestInteractableIndex != -1) && !gameState.gameFinished && !gameState.playerDied;
+    showInteractPrompt =
+        !controlCodePanelOpen &&
+        !labStabilizerPanelOpen &&
+        (nearestInteractableIndex != -1) &&
+        !gameState.gameFinished &&
+        !gameState.playerDied;
 }
 
 void handleInteraction(GLFWwindow* window)
 {
     bool ePressedNow = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
 
+    if (controlCodePanelOpen || labStabilizerPanelOpen)
+    {
+        ePressedLastFrame = ePressedNow;
+        return;
+    }
+
     if (ePressedNow && !ePressedLastFrame && !gameState.gameFinished && !gameState.playerDied)
     {
+        if (nearestInteractableIndex != -1 &&
+            world.interactables[nearestInteractableIndex].name == "control_door" &&
+            !gameState.controlUnlocked)
+        {
+            controlCodePanelOpen = true;
+            controlCodeRejected = false;
+            controlCodeInput.clear();
+            ePressedLastFrame = ePressedNow;
+            return;
+        }
+
+        if (nearestInteractableIndex != -1 &&
+            world.interactables[nearestInteractableIndex].name == "lab_decoder" &&
+            !gameState.hasCode)
+        {
+            labStabilizerPanelOpen = true;
+            labStabilizerRejected = false;
+            ePressedLastFrame = ePressedNow;
+            return;
+        }
+
         world.tryInteract(playerPos);
     }
 
@@ -417,6 +640,9 @@ const std::array<std::string, 7>& getGlyph(char c)
 {
     static const std::array<std::string, 7> SPACE = {
         "00000","00000","00000","00000","00000","00000","00000"
+    };
+    static const std::array<std::string, 7> PERIOD = {
+        "00000","00000","00000","00000","00000","01100","01100"
     };
     static const std::array<std::string, 7> A = {
         "01110","10001","10001","11111","10001","10001","10001"
@@ -565,6 +791,7 @@ const std::array<std::string, 7>& getGlyph(char c)
     case '7': return SEVEN;
     case '8': return EIGHT;
     case '9': return NINE;
+    case '.': return PERIOD;
     case ' ': return SPACE;
     default:  return SPACE;
     }
@@ -671,7 +898,7 @@ void drawProgressAndObjective(const GameState& s, Shader& hudShader, unsigned in
 
     const float panelX = 16.0f;
     const float panelY = 16.0f;
-    const float panelW = 400.0f;
+    const float panelW = 310.0f;
     const float panelH = 96.0f;
 
     drawRectHUD(hudShader, quadVAO, panelX, panelY, panelW, panelH, glm::vec3(0.08f, 0.10f, 0.14f));
@@ -741,6 +968,189 @@ void drawInteractPrompt(Shader& hudShader, unsigned int quadVAO)
     glBindVertexArray(0);
 }
 
+void drawControlCodePanel(Shader& hudShader, unsigned int quadVAO)
+{
+    if (!controlCodePanelOpen)
+        return;
+
+    hudShader.use();
+    hudShader.setVec2("screenSize", glm::vec2((float)SCR_WIDTH, (float)SCR_HEIGHT));
+    glBindVertexArray(quadVAO);
+
+    const float panelW = 500.0f;
+    const float panelH = 250.0f;
+    const float panelX = (SCR_WIDTH - panelW) * 0.5f;
+    const float panelY = (SCR_HEIGHT - panelH) * 0.5f;
+
+    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT, glm::vec3(0.01f, 0.015f, 0.025f));
+    drawRectHUD(hudShader, quadVAO, panelX + 5.0f, panelY + 5.0f, panelW, panelH, glm::vec3(0.0f, 0.0f, 0.0f));
+    drawRectHUD(hudShader, quadVAO, panelX, panelY, panelW, panelH, glm::vec3(0.08f, 0.10f, 0.14f));
+    drawRectHUD(hudShader, quadVAO, panelX + 4.0f, panelY + 4.0f, panelW - 8.0f, panelH - 8.0f, glm::vec3(0.13f, 0.16f, 0.22f));
+
+    const std::string title = "CONTROL ROOM CODE";
+    const float titlePixel = 3.4f;
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        title,
+        panelX + (panelW - getTextWidth(title, titlePixel, titlePixel)) * 0.5f,
+        panelY + 28.0f,
+        titlePixel,
+        glm::vec3(0.78f, 0.90f, 1.0f)
+    );
+
+    const float slotSize = 58.0f;
+    const float slotGap = 18.0f;
+    const float slotsW = slotSize * 4.0f + slotGap * 3.0f;
+    const float slotsX = panelX + (panelW - slotsW) * 0.5f;
+    const float slotsY = panelY + 95.0f;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        const bool filled = i < static_cast<int>(controlCodeInput.size());
+        const float x = slotsX + i * (slotSize + slotGap);
+        const glm::vec3 boxColor = controlCodeRejected
+            ? glm::vec3(0.45f, 0.08f, 0.12f)
+            : filled
+                ? glm::vec3(0.18f, 0.30f, 0.38f)
+                : glm::vec3(0.07f, 0.09f, 0.13f);
+
+        drawRectHUD(hudShader, quadVAO, x, slotsY, slotSize, slotSize, glm::vec3(0.02f, 0.025f, 0.035f));
+        drawRectHUD(hudShader, quadVAO, x + 3.0f, slotsY + 3.0f, slotSize - 6.0f, slotSize - 6.0f, boxColor);
+
+        if (filled)
+        {
+            const std::string digit(1, controlCodeInput[i]);
+            const float digitPixel = 4.6f;
+            drawTextHUD(
+                hudShader,
+                quadVAO,
+                digit,
+                x + (slotSize - getTextWidth(digit, digitPixel, digitPixel)) * 0.5f,
+                slotsY + 13.0f,
+                digitPixel,
+                glm::vec3(0.95f, 0.98f, 1.0f)
+            );
+        }
+    }
+
+    const std::string status = controlCodeRejected ? "ACCESS DENIED" : "ENTER 4 DIGITS";
+    const float statusPixel = 2.5f;
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        status,
+        panelX + (panelW - getTextWidth(status, statusPixel, statusPixel)) * 0.5f,
+        panelY + 178.0f,
+        statusPixel,
+        controlCodeRejected ? glm::vec3(1.0f, 0.35f, 0.35f) : glm::vec3(0.70f, 0.78f, 0.86f)
+    );
+
+    const std::string hint = "ENTER CONFIRM  BACKSPACE DELETE  ESC CLOSE";
+    const float hintPixel = 1.8f;
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        hint,
+        panelX + (panelW - getTextWidth(hint, hintPixel, hintPixel)) * 0.5f,
+        panelY + 214.0f,
+        hintPixel,
+        glm::vec3(0.54f, 0.62f, 0.72f)
+    );
+
+    glBindVertexArray(0);
+}
+
+void drawLabStabilizerPanel(Shader& hudShader, unsigned int quadVAO)
+{
+    if (!labStabilizerPanelOpen)
+        return;
+
+    hudShader.use();
+    hudShader.setVec2("screenSize", glm::vec2((float)SCR_WIDTH, (float)SCR_HEIGHT));
+    glBindVertexArray(quadVAO);
+
+    const float panelW = 560.0f;
+    const float panelH = 330.0f;
+    const float panelX = (SCR_WIDTH - panelW) * 0.5f;
+    const float panelY = (SCR_HEIGHT - panelH) * 0.5f;
+
+    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT, glm::vec3(0.01f, 0.015f, 0.025f));
+    drawRectHUD(hudShader, quadVAO, panelX + 5.0f, panelY + 5.0f, panelW, panelH, glm::vec3(0.0f, 0.0f, 0.0f));
+    drawRectHUD(hudShader, quadVAO, panelX, panelY, panelW, panelH, glm::vec3(0.08f, 0.10f, 0.14f));
+    drawRectHUD(hudShader, quadVAO, panelX + 4.0f, panelY + 4.0f, panelW - 8.0f, panelH - 8.0f, glm::vec3(0.13f, 0.16f, 0.22f));
+
+    const std::string title = "SAMPLE STABILIZATION";
+    const float titlePixel = 3.2f;
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        title,
+        panelX + (panelW - getTextWidth(title, titlePixel, titlePixel)) * 0.5f,
+        panelY + 28.0f,
+        titlePixel,
+        glm::vec3(0.78f, 0.90f, 1.0f)
+    );
+
+    const std::array<std::string, 3> labels{ "LIGHT", "FOCUS", "CONTRAST" };
+    const float labelPixel = 2.7f;
+    const float valuePixel = 3.8f;
+    const float rowY = panelY + 92.0f;
+    const float rowGap = 58.0f;
+    const float labelX = panelX + 72.0f;
+    const float valueX = panelX + 370.0f;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        const float y = rowY + rowGap * static_cast<float>(i);
+        const bool selected = i == labStabilizerSelected;
+        const glm::vec3 rowColor = selected ? glm::vec3(0.18f, 0.30f, 0.38f) : glm::vec3(0.07f, 0.09f, 0.13f);
+        const glm::vec3 textColor = selected ? glm::vec3(0.95f, 0.98f, 1.0f) : glm::vec3(0.68f, 0.76f, 0.84f);
+
+        drawRectHUD(hudShader, quadVAO, panelX + 48.0f, y - 10.0f, panelW - 96.0f, 44.0f, glm::vec3(0.02f, 0.025f, 0.035f));
+        drawRectHUD(hudShader, quadVAO, panelX + 52.0f, y - 6.0f, panelW - 104.0f, 36.0f, rowColor);
+
+        drawTextHUD(hudShader, quadVAO, labels[i], labelX, y, labelPixel, textColor);
+
+        const std::string value = std::to_string(labStabilizerValues[i]);
+        drawTextHUD(
+            hudShader,
+            quadVAO,
+            value,
+            valueX + (48.0f - getTextWidth(value, valuePixel, valuePixel)) * 0.5f,
+            y - 5.0f,
+            valuePixel,
+            textColor
+        );
+    }
+
+    const std::string status = labStabilizerRejected ? "SIGNAL UNSTABLE" : "TRACE SIGNAL LOCKED";
+    const float statusPixel = 2.4f;
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        status,
+        panelX + (panelW - getTextWidth(status, statusPixel, statusPixel)) * 0.5f,
+        panelY + 265.0f,
+        statusPixel,
+        labStabilizerRejected ? glm::vec3(1.0f, 0.35f, 0.35f) : glm::vec3(0.70f, 0.78f, 0.86f)
+    );
+
+    const std::string hint = "ARROWS ADJUST  ENTER ANALYZE  ESC CLOSE";
+    const float hintPixel = 1.55f;
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        hint,
+        panelX + (panelW - getTextWidth(hint, hintPixel, hintPixel)) * 0.5f,
+        panelY + 300.0f,
+        hintPixel,
+        glm::vec3(0.54f, 0.62f, 0.72f)
+    );
+
+    glBindVertexArray(0);
+}
+
 void drawSubtitle(Shader& hudShader, unsigned int quadVAO)
 {
     if (currentSubtitle.empty())
@@ -800,6 +1210,9 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
     if (!gameState.gameFinished && !gameState.playerDied)
         return;
 
+    if (gameState.playerDied && (!currentSubtitle.empty() || !subtitleQueue.empty()))
+        return;
+
     hudShader.use();
     hudShader.setVec2("screenSize", glm::vec2((float)SCR_WIDTH, (float)SCR_HEIGHT));
     glBindVertexArray(quadVAO);
@@ -843,6 +1256,67 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
         392.0f,
         hintPixel,
         glm::vec3(0.80f, 0.86f, 0.92f)
+    );
+
+    glBindVertexArray(0);
+}
+
+void drawStartMenu(Shader& hudShader, unsigned int quadVAO, float timeSeconds)
+{
+    hudShader.use();
+    hudShader.setVec2("screenSize", glm::vec2((float)SCR_WIDTH, (float)SCR_HEIGHT));
+    glBindVertexArray(quadVAO);
+
+    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT, glm::vec3(0.01f, 0.015f, 0.03f));
+
+    const std::string title = "SPACE STATION ESCAPE";
+    const std::string subtitle = "RESTORE THE STATION AND FIND THE EXIT";
+    const std::string startText = "PRESS ENTER OR SPACE TO START";
+    const std::string exitText = "PRESS ESC TO EXIT";
+    const float titlePixel = 6.0f;
+    const float subtitlePixel = 2.7f;
+    const float startPixel = 3.0f;
+    const float exitPixel = 2.1f;
+    const float pulse = 0.65f + 0.35f * std::sin(timeSeconds * 3.5f);
+
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        title,
+        (SCR_WIDTH - getTextWidth(title, titlePixel, titlePixel)) * 0.5f,
+        210.0f,
+        titlePixel,
+        glm::vec3(0.82f, 0.94f, 1.0f)
+    );
+
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        subtitle,
+        (SCR_WIDTH - getTextWidth(subtitle, subtitlePixel, subtitlePixel)) * 0.5f,
+        300.0f,
+        subtitlePixel,
+        glm::vec3(0.56f, 0.68f, 0.80f)
+    );
+
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        startText,
+        (SCR_WIDTH - getTextWidth(startText, startPixel, startPixel)) * 0.5f,
+        405.0f,
+        startPixel,
+        glm::vec3(0.45f + 0.35f * pulse, 0.82f + 0.12f * pulse, 1.0f)
+    );
+
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        exitText,
+        (SCR_WIDTH - getTextWidth(exitText, exitPixel, exitPixel)) * 0.5f,
+        470.0f,
+        exitPixel,
+        glm::vec3(0.50f, 0.58f, 0.68f)
     );
 
     glBindVertexArray(0);
@@ -1017,6 +1491,16 @@ int main()
     glEnableVertexAttribArray(0);
     glBindVertexArray(0);
 
+    unsigned int debugLineVAO = 0;
+    unsigned int debugLineVBO = 0;
+    glGenVertexArrays(1, &debugLineVAO);
+    glGenBuffers(1, &debugLineVBO);
+    glBindVertexArray(debugLineVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, debugLineVBO);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+
     auto drawCube = [&](glm::vec3 position, glm::vec3 scale, glm::vec3 color, float rotationY = 0.0f)
         {
             shader.use();
@@ -1033,9 +1517,151 @@ int main()
             glDrawArrays(GL_TRIANGLES, 0, 36);
         };
 
+    auto drawDebugLines = [&](const std::vector<glm::vec3>& vertices, glm::vec3 color)
+        {
+            if (vertices.empty())
+                return;
+
+            shader.use();
+            shader.setMat4("model", glm::mat4(1.0f));
+            shader.setVec3("objectColor", color);
+
+            glBindVertexArray(debugLineVAO);
+            glBindBuffer(GL_ARRAY_BUFFER, debugLineVBO);
+            glBufferData(
+                GL_ARRAY_BUFFER,
+                vertices.size() * sizeof(glm::vec3),
+                vertices.data(),
+                GL_DYNAMIC_DRAW
+            );
+            glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size()));
+            glBindVertexArray(0);
+        };
+
+    auto drawDebugBox = [&](const BoxCollider& box, glm::vec3 color)
+        {
+            const glm::vec3 min = box.center - box.halfSize;
+            const glm::vec3 max = box.center + box.halfSize;
+            const glm::vec3 corners[8] = {
+                { min.x, min.y, min.z },
+                { max.x, min.y, min.z },
+                { max.x, min.y, max.z },
+                { min.x, min.y, max.z },
+                { min.x, max.y, min.z },
+                { max.x, max.y, min.z },
+                { max.x, max.y, max.z },
+                { min.x, max.y, max.z }
+            };
+            const int edges[24] = {
+                0, 1, 1, 2, 2, 3, 3, 0,
+                4, 5, 5, 6, 6, 7, 7, 4,
+                0, 4, 1, 5, 2, 6, 3, 7
+            };
+
+            std::vector<glm::vec3> vertices;
+            vertices.reserve(24);
+            for (int index : edges)
+                vertices.push_back(corners[index]);
+
+            drawDebugLines(vertices, color);
+        };
+
+    auto drawDebugVerticalCylinder = [&](glm::vec3 center, float radius, float halfHeight, glm::vec3 color)
+        {
+            constexpr int kSegments = 32;
+            const float bottomY = center.y - halfHeight;
+            const float topY = center.y + halfHeight;
+            std::vector<glm::vec3> vertices;
+            vertices.reserve(kSegments * 6);
+
+            for (int i = 0; i < kSegments; ++i)
+            {
+                const float angleA = glm::two_pi<float>() * static_cast<float>(i) / static_cast<float>(kSegments);
+                const float angleB = glm::two_pi<float>() * static_cast<float>(i + 1) / static_cast<float>(kSegments);
+                const glm::vec3 bottomA(center.x + std::cos(angleA) * radius, bottomY, center.z + std::sin(angleA) * radius);
+                const glm::vec3 bottomB(center.x + std::cos(angleB) * radius, bottomY, center.z + std::sin(angleB) * radius);
+                const glm::vec3 topA(bottomA.x, topY, bottomA.z);
+                const glm::vec3 topB(bottomB.x, topY, bottomB.z);
+
+                vertices.push_back(bottomA);
+                vertices.push_back(bottomB);
+                vertices.push_back(topA);
+                vertices.push_back(topB);
+                if (i % 4 == 0)
+                {
+                    vertices.push_back(bottomA);
+                    vertices.push_back(topA);
+                }
+            }
+
+            drawDebugLines(vertices, color);
+        };
+
+    auto drawDebugHorizontalCylinder = [&](const HorizontalCylinderCollider& cylinder, glm::vec3 color)
+        {
+            constexpr int kSegments = 32;
+            const glm::vec3 axis = glm::normalize(glm::vec3(cylinder.axisXZ.x, 0.0f, cylinder.axisXZ.z));
+            const glm::vec3 side = glm::normalize(glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), axis));
+            const glm::vec3 up(0.0f, 1.0f, 0.0f);
+            const glm::vec3 endA = cylinder.center - axis * cylinder.halfLength;
+            const glm::vec3 endB = cylinder.center + axis * cylinder.halfLength;
+            std::vector<glm::vec3> vertices;
+            vertices.reserve(kSegments * 6);
+
+            for (int i = 0; i < kSegments; ++i)
+            {
+                const float angleA = glm::two_pi<float>() * static_cast<float>(i) / static_cast<float>(kSegments);
+                const float angleB = glm::two_pi<float>() * static_cast<float>(i + 1) / static_cast<float>(kSegments);
+                const glm::vec3 ringA0 = side * (std::cos(angleA) * cylinder.radius) + up * (std::sin(angleA) * cylinder.radius);
+                const glm::vec3 ringA1 = side * (std::cos(angleB) * cylinder.radius) + up * (std::sin(angleB) * cylinder.radius);
+                const glm::vec3 a0 = endA + ringA0;
+                const glm::vec3 a1 = endA + ringA1;
+                const glm::vec3 b0 = endB + ringA0;
+                const glm::vec3 b1 = endB + ringA1;
+
+                vertices.push_back(a0);
+                vertices.push_back(a1);
+                vertices.push_back(b0);
+                vertices.push_back(b1);
+                if (i % 4 == 0)
+                {
+                    vertices.push_back(a0);
+                    vertices.push_back(b0);
+                }
+            }
+
+            drawDebugLines(vertices, color);
+        };
+
+    auto drawCollisionDebug = [&]()
+        {
+            if (!showCollisionDebug)
+                return;
+
+            glDisable(GL_DEPTH_TEST);
+            glLineWidth(2.0f);
+
+            for (const auto& box : world.colliders)
+                drawDebugBox(box, glm::vec3(1.0f, 0.35f, 0.20f));
+            for (const auto& circle : world.circleColliders)
+                drawDebugVerticalCylinder(circle.center + glm::vec3(0.0f, 1.0f, 0.0f), circle.radius, 1.0f, glm::vec3(0.25f, 0.9f, 1.0f));
+            for (const auto& cylinder : world.cylinderColliders)
+                drawDebugVerticalCylinder(cylinder.center, cylinder.radius, cylinder.halfHeight, glm::vec3(0.2f, 1.0f, 0.35f));
+            for (const auto& cylinder : world.horizontalCylinderColliders)
+                drawDebugHorizontalCylinder(cylinder, glm::vec3(1.0f, 0.95f, 0.15f));
+            for (const auto& door : world.doors)
+            {
+                if (!door.open)
+                    drawDebugBox({ door.center, door.halfSize }, glm::vec3(1.0f, 0.1f, 0.85f));
+            }
+
+            glLineWidth(1.0f);
+            glEnable(GL_DEPTH_TEST);
+        };
+
     const glm::vec3 oxygenPipeBodyColor(0.75f, 0.78f, 0.94f);
 
-    auto drawStaticModel = [&](StaticModel& modelAsset, const ModelPlacement& placement, bool usePartColors = false)
+    auto drawStaticModel = [&](StaticModel& modelAsset, const ModelPlacement& placement, bool usePartColors = false, bool recolorBlueToRed = false)
         {
             if (!modelAsset.isLoaded())
                 return;
@@ -1050,6 +1676,7 @@ int main()
             staticModelShader.setMat4("model", model);
             staticModelShader.setVec3("tintColor", placement.color);
             staticModelShader.setInt("usePartColors", usePartColors ? 1 : 0);
+            staticModelShader.setInt("recolorBlueToRed", recolorBlueToRed ? 1 : 0);
             staticModelShader.setVec3("partBaseColor", oxygenPipeBodyColor);
             staticModelShader.setVec3("partAccentColor", placement.color);
             staticModelShader.setVec3("lightDir", glm::normalize(glm::vec3(-0.35f, -1.0f, -0.15f)));
@@ -1121,6 +1748,43 @@ int main()
         float currentFrame = (float)glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+
+        if (!gameStarted)
+        {
+            const bool escapePressedNow = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
+            if (escapePressedNow && !escapePressedLastFrame)
+                glfwSetWindowShouldClose(window, true);
+            escapePressedLastFrame = escapePressedNow;
+
+            const bool enterPressedNow = glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS ||
+                glfwGetKey(window, GLFW_KEY_KP_ENTER) == GLFW_PRESS;
+            const bool spacePressedNow = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+            if ((enterPressedNow && !enterPressedLastFrame) || (spacePressedNow && !spacePressedLastFrame))
+            {
+                gameStarted = true;
+                enterPressedLastFrame = enterPressedNow;
+                spacePressedLastFrame = spacePressedNow;
+                subtitleQueue.clear();
+                currentSubtitle.clear();
+                subtitleTimer = 0.0f;
+                std::cout << "Game started\n";
+            }
+            else
+            {
+                enterPressedLastFrame = enterPressedNow;
+                spacePressedLastFrame = spacePressedNow;
+            }
+
+            glClearColor(0.01f, 0.015f, 0.03f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glDisable(GL_DEPTH_TEST);
+            drawStartMenu(hudShader, quadVAO, currentFrame);
+            glEnable(GL_DEPTH_TEST);
+
+            glfwSwapBuffers(window);
+            glfwPollEvents();
+            continue;
+        }
 
         processInput(window);
         if (playerDanceTriggered)
@@ -1292,7 +1956,7 @@ int main()
                 if (gameState.controlUnlocked)
                     drawStaticModel(gate, controlUnlockGatePlacement);
                 else
-                    drawStaticModel(gateDoor, controlUnlockGatePlacement);
+                    drawStaticModel(gateDoor, controlUnlockGatePlacement, false, true);
             }
             for (const auto& bedPlacement : testRoomScene.bedPlacements)
                 drawStaticModel(bedDouble, bedPlacement);
@@ -1474,6 +2138,8 @@ int main()
             }
         }
 
+        drawCollisionDebug();
+
         if (activeCharacter)
         {
             activeCharacter->draw(characterShader, view, projection, playerPos, playerYaw);
@@ -1504,6 +2170,8 @@ int main()
         drawProgressAndObjective(gameState, hudShader, quadVAO);
         drawInteractPrompt(hudShader, quadVAO);
         drawSubtitle(hudShader, quadVAO);
+        drawControlCodePanel(hudShader, quadVAO);
+        drawLabStabilizerPanel(hudShader, quadVAO);
         drawEndingOverlay(hudShader, quadVAO);
         glEnable(GL_DEPTH_TEST);
 
