@@ -61,7 +61,8 @@ namespace
     const glm::vec3 kOxygenConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kOxygenConsoleColor(0.78f, 0.78f, 0.20f);
     constexpr float kOxygenValveHeight = -0.05f;
-    constexpr float kOxygenValveScale = 1.45f;
+    constexpr float kOxygenValveScale = 2.5f;
+    constexpr float kOxygenValveSpacing = 1.25f;
     const glm::vec3 kPowerConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kPowerConsoleColor(0.20f, 0.55f, 0.95f);
     const glm::vec3 kStorageNoteScale(0.9f, 0.9f, 0.9f);
@@ -175,9 +176,9 @@ TestRoomScene createTestRoomScene()
         kOxygenConsoleColor
     };
     scene.oxygenValvePlacements = {
-        { oxygenRoomCenter + glm::vec3(-2.5f, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(1.0f, 0.30f, 0.24f) },
+        { oxygenRoomCenter + glm::vec3(-kOxygenValveSpacing, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(1.0f, 0.30f, 0.24f) },
         { oxygenRoomCenter + glm::vec3(0.0f, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(0.20f, 0.58f, 1.0f) },
-        { oxygenRoomCenter + glm::vec3(2.5f, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(0.25f, 0.95f, 0.38f) }
+        { oxygenRoomCenter + glm::vec3(kOxygenValveSpacing, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(0.25f, 0.95f, 0.38f) }
     };
 
     scene.powerConsolePlacement = {
@@ -563,7 +564,7 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
     {
         world.colliders.push_back({
             placement.position + glm::vec3(0.0f, 0.7f, 0.0f),
-            glm::vec3(0.65f, 0.75f, 0.65f)
+            glm::vec3(0.82f, 0.95f, 0.82f)
         });
     }
     addAxisAlignedRotatedCollider(scene.controlTerminalPlacement, kControlComputerScreenHalfSize);
