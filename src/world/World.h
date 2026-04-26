@@ -18,6 +18,21 @@ struct CircleCollider
     float radius = 0.0f;
 };
 
+struct CylinderCollider
+{
+    glm::vec3 center;
+    float radius = 0.0f;
+    float halfHeight = 0.0f;
+};
+
+struct HorizontalCylinderCollider
+{
+    glm::vec3 center;
+    glm::vec3 axisXZ{ 0.0f, 0.0f, 1.0f };
+    float halfLength = 0.0f;
+    float radius = 0.0f;
+};
+
 struct WorldObject
 {
     std::string id;
@@ -63,6 +78,8 @@ public:
     std::vector<WorldObject> staticObjects;
     std::vector<BoxCollider> colliders;
     std::vector<CircleCollider> circleColliders;
+    std::vector<CylinderCollider> cylinderColliders;
+    std::vector<HorizontalCylinderCollider> horizontalCylinderColliders;
     std::vector<Room> rooms;
     std::vector<Interactable> interactables;
     std::vector<Door> doors;

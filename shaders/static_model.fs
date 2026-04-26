@@ -9,6 +9,7 @@ in float PartMask;
 uniform sampler2D texture_diffuse1;
 uniform int useTexture;
 uniform int usePartColors;
+uniform int recolorBlueToRed;
 uniform vec3 tintColor;
 uniform vec3 partBaseColor;
 uniform vec3 partAccentColor;
@@ -21,7 +22,17 @@ void main()
     if (usePartColors == 1)
         baseColor = PartMask > 0.5 ? partAccentColor : partBaseColor;
     else if (useTexture == 1)
+    {
         baseColor = texture(texture_diffuse1, TexCoord).rgb * tintColor;
+        if (recolorBlueToRed == 1 &&
+            baseColor.b > 0.35 &&
+            baseColor.b > baseColor.r * 1.25 &&
+            baseColor.b > baseColor.g * 1.08)
+        {
+            float value = max(max(baseColor.r, baseColor.g), baseColor.b);
+            baseColor = vec3(value, value * 0.16, value * 0.13);
+        }
+    }
 
     vec3 n = normalize(Normal);
     float diffuse = max(dot(n, normalize(-lightDir)), 0.0);

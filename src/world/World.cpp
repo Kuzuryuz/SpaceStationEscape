@@ -1,8 +1,9 @@
 #include "World.h"
 
 #include <glm/common.hpp>
-#include <cmath>
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <iostream>
 #include <limits>
 #include <vector>
@@ -35,6 +36,106 @@ namespace
         );
         const glm::vec3 delta = sphereCenter - closestPoint;
         return glm::dot(delta, delta) <= radius * radius;
+    }
+
+    bool intersectsSphereCylinder(const glm::vec3& sphereCenter, float sphereRadius, const CylinderCollider& cylinder)
+    {
+        const float dx = sphereCenter.x - cylinder.center.x;
+        const float dz = sphereCenter.z - cylinder.center.z;
+        const float combinedRadius = sphereRadius + cylinder.radius;
+        const bool overlapsXZ = (dx * dx + dz * dz) < (combinedRadius * combinedRadius);
+        const bool overlapsY =
+            sphereCenter.y + sphereRadius >= cylinder.center.y - cylinder.halfHeight &&
+            sphereCenter.y - sphereRadius <= cylinder.center.y + cylinder.halfHeight;
+
+        return overlapsXZ && overlapsY;
+    }
+
+    bool intersectsCircleHorizontalCylinderXZ(
+        const glm::vec3& circleCenter,
+        float circleRadius,
+        const HorizontalCylinderCollider& cylinder)
+    {
+        const glm::vec3 axis = glm::normalize(glm::vec3(cylinder.axisXZ.x, 0.0f, cylinder.axisXZ.z));
+        const glm::vec3 offset(circleCenter.x - cylinder.center.x, 0.0f, circleCenter.z - cylinder.center.z);
+        const float axialDistance = std::abs(glm::dot(offset, axis));
+        const glm::vec3 radialOffset = offset - axis * glm::dot(offset, axis);
+        const float radialDistance = glm::length(radialOffset);
+        const float outsideAxial = std::max(axialDistance - cylinder.halfLength, 0.0f);
+        const float outsideRadial = std::max(radialDistance - cylinder.radius, 0.0f);
+
+        return outsideAxial * outsideAxial + outsideRadial * outsideRadial < circleRadius * circleRadius;
+    }
+
+    bool intersectsSphereHorizontalCylinder(
+        const glm::vec3& sphereCenter,
+        float sphereRadius,
+        const HorizontalCylinderCollider& cylinder)
+    {
+        const glm::vec3 axis = glm::normalize(glm::vec3(cylinder.axisXZ.x, 0.0f, cylinder.axisXZ.z));
+        const glm::vec3 offset = sphereCenter - cylinder.center;
+        const float axialDistance = std::abs(glm::dot(offset, axis));
+        const glm::vec3 radialOffset = offset - axis * glm::dot(offset, axis);
+        const float radialDistance = glm::length(radialOffset);
+        const float outsideAxial = std::max(axialDistance - cylinder.halfLength, 0.0f);
+        const float outsideRadial = std::max(radialDistance - cylinder.radius, 0.0f);
+
+        return outsideAxial * outsideAxial + outsideRadial * outsideRadial < sphereRadius * sphereRadius;
+    }
+
+    int getOxygenValveIndex(const std::string& interactableName)
+    {
+        const std::string prefix = "oxygen_valve_";
+        if (interactableName.rfind(prefix, 0) != 0)
+            return -1;
+
+        if (interactableName.size() != prefix.size() + 1)
+            return -1;
+
+        const char valveNumber = interactableName.back();
+        if (valveNumber < '1' || valveNumber > '0' + GameState::kOxygenValveCount)
+            return -1;
+
+        return valveNumber - '1';
+    }
+
+    bool isInteractableCompleted(const GameState& state, const std::string& interactableName)
+    {
+        const int oxygenValveIndex = getOxygenValveIndex(interactableName);
+        if (oxygenValveIndex != -1)
+            return state.oxygenValvesOpened[oxygenValveIndex];
+
+        if (interactableName == "power_console")
+            return state.powerFixed;
+        if (interactableName == "storage_note")
+            return state.foundNote;
+        if (interactableName == "lab_decoder")
+            return state.hasCode;
+        if (interactableName == "control_door")
+            return state.controlUnlocked;
+        if (interactableName == "control_terminal")
+            return state.gameFinished;
+
+        return false;
+    }
+
+    bool isInteractableUnlocked(const GameState& state, const std::string& interactableName)
+    {
+        if (getOxygenValveIndex(interactableName) != -1)
+            return !state.oxygenFixed && !state.playerDied;
+
+        if (interactableName == "power_console")
+            return state.oxygenFixed;
+        if (interactableName == "storage_note")
+            return state.powerFixed && state.storageUnlocked;
+        if (interactableName == "lab_decoder")
+            return state.powerFixed && state.labUnlocked && state.foundNote;
+        if (interactableName == "control_door")
+            return true;
+        if (interactableName == "control_terminal")
+            return state.controlUnlocked;
+
+        return true;
     }
 }
 
@@ -175,6 +276,8 @@ void World::buildDefaultRoom()
     staticObjects.clear();
     colliders.clear();
     circleColliders.clear();
+    cylinderColliders.clear();
+    horizontalCylinderColliders.clear();
     rooms.clear();
     interactables.clear();
     doors.clear();
@@ -344,13 +447,19 @@ void World::buildDefaultRoom()
 
                 if (gameState->playerDied)
                 {
-                    std::cout << "No response. Oxygen failure already triggered\n";
+                    std::cout << "AI: No response. Crew vitals lost\n";
                     return;
                 }
 
                 if (gameState->oxygenFixed)
                 {
-                    std::cout << "Oxygen already stable\n";
+                    std::cout << "AI: Oxygen already stable\n";
+                    return;
+                }
+
+                if (gameState->oxygenValvesOpened[valveNumber])
+                {
+                    std::cout << "AI: Valve already aligned\n";
                     return;
                 }
 
@@ -360,25 +469,19 @@ void World::buildDefaultRoom()
                     gameState->oxygenPuzzleFailed = true;
                     gameState->playerDied = true;
                     gameState->gameFinished = true;
-                    std::cout << "Wrong valve order. Oxygen purge failed\n";
-                    std::cout << "The chamber vented and the player died\n";
-                    return;
-                }
-
-                if (gameState->oxygenValvesOpened[valveNumber])
-                {
-                    std::cout << "Valve already opened\n";
+                    std::cout << "AI: Wrong valve order. Oxygen purge failed\n";
+                    std::cout << "AI: Chamber vented. Crew vitals lost\n";
                     return;
                 }
 
                 gameState->oxygenValvesOpened[valveNumber] = true;
                 ++gameState->oxygenValveProgress;
-                std::cout << "Valve " << (valveNumber + 1) << " aligned\n";
+                std::cout << "AI: Valve " << (valveNumber + 1) << " aligned\n";
 
                 if (gameState->oxygenValveProgress >= GameState::kOxygenValveCount)
                 {
                     gameState->oxygenFixed = true;
-                    std::cout << "Oxygen fixed\n";
+                    std::cout << "AI: Oxygen flow stabilized\n";
                 }
             }
         });
@@ -395,13 +498,13 @@ void World::buildDefaultRoom()
 
             if (!gameState->oxygenFixed)
             {
-                std::cout << "Power locked: fix oxygen first\n";
+                std::cout << "AI: Power console locked until oxygen is stable\n";
                 return;
             }
 
             if (gameState->powerFixed)
             {
-                std::cout << "Power already restored\n";
+                std::cout << "AI: Main power already restored\n";
                 return;
             }
 
@@ -414,8 +517,8 @@ void World::buildDefaultRoom()
             if (Door* labDoor = findDoor("Lab Door"))
                 labDoor->open = true;
 
-            std::cout << "Power restored\n";
-            std::cout << "Storage and Lab unlocked\n";
+            std::cout << "AI: Main power restored\n";
+            std::cout << "AI: Storage and Lab access online\n";
         }
     });
 
@@ -430,18 +533,18 @@ void World::buildDefaultRoom()
 
             if (!gameState->storageUnlocked)
             {
-                std::cout << "Storage locked\n";
+                std::cout << "AI: Storage access offline\n";
                 return;
             }
 
             if (gameState->foundNote)
             {
-                std::cout << "Nothing else here\n";
+                std::cout << "AI: Clue already recovered\n";
                 return;
             }
 
             gameState->foundNote = true;
-            std::cout << "You found a note\n";
+            std::cout << "AI: Encrypted clue recovered\n";
         }
     });
 
@@ -456,25 +559,23 @@ void World::buildDefaultRoom()
 
             if (!gameState->labUnlocked)
             {
-                std::cout << "Lab locked\n";
+                std::cout << "AI: Lab access offline\n";
                 return;
             }
 
             if (!gameState->foundNote)
             {
-                std::cout << "Need hint from storage first\n";
+                std::cout << "AI: No encrypted clue available for decoding\n";
                 return;
             }
 
             if (gameState->hasCode)
             {
-                std::cout << "Code already obtained\n";
+                std::cout << "AI: Control code already recovered\n";
                 return;
             }
 
-            gameState->hasCode = true;
-            std::cout << "You decoded the code\n";
-            std::cout << "Return to the control door\n";
+            std::cout << "AI: Sample stabilization required\n";
         }
     });
 
@@ -489,22 +590,17 @@ void World::buildDefaultRoom()
 
             if (!gameState->hasCode)
             {
-                std::cout << "Control locked: need code\n";
+                std::cout << "AI: Control room locked. Security code required\n";
                 return;
             }
 
             if (gameState->controlUnlocked)
             {
-                std::cout << "Control room already unlocked\n";
+                std::cout << "AI: Control room already unlocked\n";
                 return;
             }
 
-            gameState->controlUnlocked = true;
-
-            if (Door* controlDoor = findDoor("Control Door"))
-                controlDoor->open = true;
-
-            std::cout << "Control room unlocked\n";
+            std::cout << "AI: Awaiting control room code entry\n";
         }
     });
 
@@ -519,18 +615,18 @@ void World::buildDefaultRoom()
 
             if (!gameState->controlUnlocked)
             {
-                std::cout << "Control room locked\n";
+                std::cout << "AI: Terminal inaccessible until Control Room is unlocked\n";
                 return;
             }
 
             if (gameState->gameFinished)
             {
-                std::cout << "Mission already complete\n";
+                std::cout << "AI: Escape route already authorized\n";
                 return;
             }
 
             gameState->gameFinished = true;
-            std::cout << "Escape successful\n";
+            std::cout << "AI: Escape route authorized\n";
         }
     });
 
@@ -588,6 +684,18 @@ bool World::collidesWithWorld(const glm::vec3& testPos, float playerRadius) cons
             return true;
     }
 
+    for (const auto& cylinder : cylinderColliders)
+    {
+        if (intersectsCircleCircleXZ(testPos, playerRadius, cylinder.center, cylinder.radius))
+            return true;
+    }
+
+    for (const auto& cylinder : horizontalCylinderColliders)
+    {
+        if (intersectsCircleHorizontalCylinderXZ(testPos, playerRadius, cylinder))
+            return true;
+    }
+
     for (const auto& door : doors)
     {
         if (!door.open && intersectsCircleBoxXZ(testPos, playerRadius, { door.center, door.halfSize }))
@@ -608,6 +716,18 @@ bool World::collidesWithCamera(const glm::vec3& cameraPos, float cameraRadius) c
     for (const auto& circle : circleColliders)
     {
         if (intersectsCircleCircleXZ(cameraPos, cameraRadius, circle.center, circle.radius))
+            return true;
+    }
+
+    for (const auto& cylinder : cylinderColliders)
+    {
+        if (intersectsSphereCylinder(cameraPos, cameraRadius, cylinder))
+            return true;
+    }
+
+    for (const auto& cylinder : horizontalCylinderColliders)
+    {
+        if (intersectsSphereHorizontalCylinder(cameraPos, cameraRadius, cylinder))
             return true;
     }
 
@@ -644,6 +764,10 @@ int World::getNearestInteractableIndex(const glm::vec3& playerPos) const
     for (int i = 0; i < (int)interactables.size(); i++)
     {
         const auto& interactable = interactables[i];
+        if (gameState && isInteractableCompleted(*gameState, interactable.name))
+            continue;
+        if (gameState && !isInteractableUnlocked(*gameState, interactable.name))
+            continue;
 
         float dx = playerPos.x - interactable.pos.x;
         float dz = playerPos.z - interactable.pos.z;

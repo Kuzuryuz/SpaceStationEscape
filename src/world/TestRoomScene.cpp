@@ -2,6 +2,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 
@@ -194,6 +195,7 @@ TestRoomScene createTestRoomScene()
         { storageRoomCenter + glm::vec3(-kRoomLargeHalfExtent + kStoragePropWallInset, storagePropY, kStoragePropSideOffset), glm::vec3(kStorageLongContainerScale), 0.0f, glm::vec3(1.0f) }
     };
     scene.storageContainerFlatPlacements = {
+        { storageRoomCenter + glm::vec3(2.25f, storagePropY, 0.9f), glm::vec3(kStoragePropScale), 45.0f, glm::vec3(1.0f) },
         { storageRoomCenter + glm::vec3(kStoragePropSideOffset, storagePropY, kRoomLargeHalfExtent - kStoragePropWallInset), glm::vec3(kStoragePropScale), 90.0f, glm::vec3(1.0f) },
         { storageRoomCenter + glm::vec3(-kStoragePropSideOffset, storagePropY, -kRoomLargeHalfExtent + kStoragePropWallInset), glm::vec3(kStoragePropScale), -90.0f, glm::vec3(1.0f) }
     };
@@ -201,6 +203,7 @@ TestRoomScene createTestRoomScene()
         { storageRoomCenter + glm::vec3(kRoomLargeHalfExtent - kStoragePropWallInset, storagePropY, -kStoragePropSideOffset), glm::vec3(kStoragePropScale), 0.0f, glm::vec3(1.0f) }
     };
     scene.storageContainerTallPlacements = {
+        { storageRoomCenter + glm::vec3(0.0f, storagePropY, 0.0f), glm::vec3(kStoragePropScale), 35.0f, glm::vec3(1.0f) },
         { storageRoomCenter + glm::vec3(-kRoomLargeHalfExtent + kStoragePropWallInset, storagePropY, -kStoragePropSideOffset), glm::vec3(kStoragePropScale), 25.0f, glm::vec3(1.0f) },
         { storageRoomCenter + glm::vec3(kRoomLargeHalfExtent - kStoragePropWallInset, storagePropY, kStoragePropSideOffset), glm::vec3(kStoragePropScale), -20.0f, glm::vec3(1.0f) }
     };
@@ -390,6 +393,8 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
 
     world.colliders.clear();
     world.circleColliders.clear();
+    world.cylinderColliders.clear();
+    world.horizontalCylinderColliders.clear();
     world.doors.clear();
     world.rooms.clear();
     world.rooms.push_back({
@@ -539,16 +544,36 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         });
     };
 
+    auto addCylinderPropCollider = [&](const ModelPlacement& placement, const glm::vec3& halfSize)
+    {
+        world.cylinderColliders.push_back({
+            placement.position + glm::vec3(0.0f, halfSize.y, 0.0f),
+            std::max(halfSize.x, halfSize.z),
+            halfSize.y
+        });
+    };
+
+    auto addHorizontalCylinderPropCollider = [&](const ModelPlacement& placement, const glm::vec3& halfSize)
+    {
+        const glm::vec3 axis = rotateOffsetY(glm::vec3(0.0f, 0.0f, 1.0f), placement.rotationY);
+        world.horizontalCylinderColliders.push_back({
+            placement.position + glm::vec3(0.0f, halfSize.y, 0.0f),
+            glm::vec3(axis.x, 0.0f, axis.z),
+            halfSize.z,
+            std::max(halfSize.x, halfSize.y)
+        });
+    };
+
     for (const auto& placement : scene.storageContainerPlacements)
-        addAxisAlignedRotatedCollider(placement, kStorageContainerHalfSize);
+        addCylinderPropCollider(placement, kStorageContainerHalfSize);
     for (const auto& placement : scene.storageContainerFlatPlacements)
-        addAxisAlignedRotatedCollider(placement, kStorageContainerFlatHalfSize);
+        addHorizontalCylinderPropCollider(placement, kStorageContainerFlatHalfSize);
     for (const auto& placement : scene.storageContainerFlatOpenPlacements)
-        addAxisAlignedRotatedCollider(placement, kStorageContainerFlatHalfSize);
+        addHorizontalCylinderPropCollider(placement, kStorageContainerFlatHalfSize);
     for (const auto& placement : scene.storageContainerTallPlacements)
-        addAxisAlignedRotatedCollider(placement, kStorageContainerTallHalfSize);
+        addCylinderPropCollider(placement, kStorageContainerTallHalfSize);
     for (const auto& placement : scene.storageContainerWidePlacements)
-        addAxisAlignedRotatedCollider(placement, kStorageContainerWideHalfSize);
+        addCylinderPropCollider(placement, kStorageContainerWideHalfSize);
 
     addAxisAlignedRotatedCollider(scene.labSkipRocksPlacement, kLabSkipRocksHalfSize);
     world.colliders.push_back({
@@ -666,6 +691,8 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
     std::cout << "Room-large test enabled"
         << " | boxColliders=" << world.colliders.size()
         << " | circleColliders=" << world.circleColliders.size()
+        << " | cylinderColliders=" << world.cylinderColliders.size()
+        << " | horizontalCylinderColliders=" << world.horizontalCylinderColliders.size()
         << " | rooms=" << scene.roomPlacements.size()
         << " | corridors=" << scene.corridorPlacements.size()
         << " | gates=" << scene.gatePlacements.size()
