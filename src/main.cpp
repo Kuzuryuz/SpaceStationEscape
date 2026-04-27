@@ -2176,6 +2176,9 @@ int main()
     StaticModel displayWallWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/display-wall-wide.obj");
     StaticModel labPoster(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/poster_lab.obj");
     StaticModel oxygenPoster(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/poster_oxygen.obj");
+    StaticModel powerPosterPowerOff(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/poster_power_off.obj");
+    StaticModel powerPosterMaintenance(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/poster_maintenance.obj");
+    StaticModel powerPosterCalibration(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/poster_calibration.obj");
     StaticModel oxygenPipeUp(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/pipe-up.obj");
     StaticModel oxygenPipeDown(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/pipe-down.obj");
     const std::string puzzleTexture =
@@ -2466,6 +2469,9 @@ int main()
                 drawStaticModel(containerTall, placement);
             for (const auto& placement : testRoomScene.storageContainerWidePlacements)
                 drawStaticModel(containerWide, placement);
+            drawStaticModel(powerPosterPowerOff, testRoomScene.powerPosterPowerOffPlacement);
+            drawStaticModel(powerPosterMaintenance, testRoomScene.powerPosterMaintenancePlacement);
+            drawStaticModel(powerPosterCalibration, testRoomScene.powerPosterCalibrationPlacement);
             drawStaticModel(oxygenPoster, testRoomScene.oxygenPosterPlacement);
             for (int valveIndex = 0; valveIndex < static_cast<int>(testRoomScene.oxygenValvePlacements.size()); ++valveIndex)
             {

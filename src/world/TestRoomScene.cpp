@@ -74,6 +74,7 @@ namespace
     const glm::vec3 kOxygenConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kOxygenConsoleColor(0.78f, 0.78f, 0.20f);
     const glm::vec3 kOxygenPosterScale(5.0f, 5.0f, 1.0f);
+    const glm::vec3 kPowerPosterScale(5.0f, 5.0f, 1.0f);
     const glm::vec3 kLabPosterScale(5.0f, 5.0f, 1.0f);
     constexpr float kOxygenValveHeight = -0.05f;
     constexpr float kOxygenValveScale = 2.5f;
@@ -207,6 +208,24 @@ TestRoomScene createTestRoomScene()
         kPowerConsoleScale,
         0.0f,
         kPowerConsoleColor
+    };
+    scene.powerPosterPowerOffPlacement = {
+        powerRoomCenter + glm::vec3(-kRoomLargeHalfExtent + 0.01f, 2.35f, -3.4f),
+        kPowerPosterScale,
+        90.0f,
+        glm::vec3(1.0f)
+    };
+    scene.powerPosterMaintenancePlacement = {
+        powerRoomCenter + glm::vec3(kRoomLargeHalfExtent - 0.01f, 2.25f, 3.2f),
+        kPowerPosterScale,
+        -90.0f,
+        glm::vec3(1.0f)
+    };
+    scene.powerPosterCalibrationPlacement = {
+        powerRoomCenter + glm::vec3(kRoomLargeHalfExtent - 0.01f, 2.35f, -3.5f),
+        kPowerPosterScale,
+        -90.0f,
+        glm::vec3(1.0f)
     };
 
     const float storagePropY = kRoomLargeBaseY + 0.55f;

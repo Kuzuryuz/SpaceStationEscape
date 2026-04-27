@@ -44,6 +44,9 @@ struct TestRoomScene
     std::vector<ModelPlacement> oxygenValvePlacements;
     ModelPlacement oxygenPosterPlacement;
     ModelPlacement powerConsolePlacement;
+    ModelPlacement powerPosterPowerOffPlacement;
+    ModelPlacement powerPosterMaintenancePlacement;
+    ModelPlacement powerPosterCalibrationPlacement;
     ModelPlacement controlTerminalPlacement;
     std::vector<ModelPlacement> controlComputerPlacements;
     std::vector<ModelPlacement> controlComputerWidePlacements;
