@@ -40,8 +40,20 @@ namespace
     constexpr float kLabTableDisplayScale = 3.0f;
     constexpr float kLabTableDisplayCornerInset = 1.75f;
     constexpr float kLabTableDisplaySpacing = 3.0f;
-    const glm::vec3 kLabTableDisplayHalfSize(2.0f, 1.0f, 1.7f);
-    constexpr float kLabTableInteractForwardOffset = 2.7f;
+    constexpr float kLabTableColliderHalfHeight = 1.05f;
+    constexpr float kLabTableColliderCenterY = -0.05f;
+    const glm::vec3 kLabTableDisplayHalfSize(2.0f, kLabTableColliderHalfHeight, 1.7f);
+    constexpr float kLabSmallTableScale = 2.8f;
+    constexpr float kLabSmallTableCornerInset = 1.9f;
+    constexpr float kLabSmallTableSpacing = 2.8f;
+    const glm::vec3 kLabSmallTableHalfSize(1.7f, kLabTableColliderHalfHeight, 1.45f);
+    constexpr float kLabComputerScale = 3.2f;
+    constexpr float kLabComputerScreenScale = 2.4f;
+    constexpr float kLabComputerSideOffset = 3.25f;
+    constexpr float kLabComputerInteractOffset = 2.0f;
+    constexpr float kLabComputerScreenSideSpacing = 2.2f;
+    const glm::vec3 kLabComputerHalfSize(1.15f, 0.85f, 1.05f);
+    const glm::vec3 kLabComputerScreenHalfSize(1.25f, 0.85f, 0.85f);
     constexpr float kLabCornerPropInset = 1.75f;
     constexpr float kLabCornerPropSpacing = 3.0f;
     constexpr float kLabSkipRocksScale = 2.4f;
@@ -276,6 +288,33 @@ TestRoomScene createTestRoomScene()
         { labTableCorner + glm::vec3(kLabTableDisplaySpacing, 1.3f, 0.0f), glm::vec3(kLabTableDisplayScale), 0.0f, glm::vec3(1.0f) },
         { labTableCorner + glm::vec3(0.0f, 1.3f, kLabTableDisplaySpacing), glm::vec3(kLabTableDisplayScale), 90.0f, glm::vec3(1.0f) }
     };
+    scene.labComputerPlacement = {
+        labRoomCenter + glm::vec3(
+            -kRoomLargeHalfExtent + kLabCornerPropInset,
+            0.0f,
+            kRoomLargeHalfExtent - kLabCornerPropInset),
+        glm::vec3(kLabComputerScale),
+        90.0f,
+        glm::vec3(1.0f)
+    };
+    scene.labComputerScreenPlacement = {
+        scene.labComputerPlacement.position + glm::vec3(0.0f, 0.0f, -kLabComputerScreenSideSpacing),
+        glm::vec3(kLabComputerScreenScale),
+        90.0f,
+        glm::vec3(1.0f)
+    };
+
+    const glm::vec3 labSmallTableCorner =
+        labRoomCenter + glm::vec3(
+            kRoomLargeHalfExtent - kLabSmallTableCornerInset,
+            kRoomLargeBaseY,
+            kRoomLargeHalfExtent - kLabSmallTableCornerInset);
+    scene.labSmallTableDisplayPlacements = {
+        { labSmallTableCorner + glm::vec3(-kLabSmallTableSpacing, 1.15f, 0.0f), glm::vec3(kLabSmallTableScale), 180.0f, glm::vec3(1.0f) }
+    };
+    scene.labTableInsetPlacements = {
+        { labSmallTableCorner + glm::vec3(0.0f, 1.15f, -kLabSmallTableSpacing), glm::vec3(kLabSmallTableScale), -90.0f, glm::vec3(1.0f) }
+    };
 
     const glm::vec3 labSkipRocksCorner =
         labRoomCenter + glm::vec3(
@@ -295,6 +334,15 @@ TestRoomScene createTestRoomScene()
     };
     scene.labRocksPlacement = {
         labRocksCorner + glm::vec3(0.0f, 0.5f, 0.0f),
+        glm::vec3(kLabRocksScale),
+        0.0f,
+        glm::vec3(1.0f)
+    };
+    scene.labCenterRocksPlacement = {
+        labRoomCenter + glm::vec3(
+            -kLabRocksCollisionCenterOffset.x,
+            kRoomLargeBaseY + 0.5f,
+            -kLabRocksCollisionCenterOffset.z),
         glm::vec3(kLabRocksScale),
         0.0f,
         glm::vec3(1.0f)
@@ -533,10 +581,32 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         const bool tableRunsAlongX =
             std::abs(std::cos(glm::radians(tableDisplayPlacement.rotationY))) > 0.5f;
         world.colliders.push_back({
-            tableDisplayPlacement.position + glm::vec3(0.0f, kLabTableDisplayHalfSize.y, 0.0f),
+            tableDisplayPlacement.position + glm::vec3(0.0f, kLabTableColliderCenterY, 0.0f),
             tableRunsAlongX
                 ? kLabTableDisplayHalfSize
                 : glm::vec3(kLabTableDisplayHalfSize.z, kLabTableDisplayHalfSize.y, kLabTableDisplayHalfSize.x)
+        });
+    }
+    for (const auto& tableDisplayPlacement : scene.labSmallTableDisplayPlacements)
+    {
+        const bool tableRunsAlongX =
+            std::abs(std::cos(glm::radians(tableDisplayPlacement.rotationY))) > 0.5f;
+        world.colliders.push_back({
+            tableDisplayPlacement.position + glm::vec3(0.0f, kLabTableColliderCenterY, 0.0f),
+            tableRunsAlongX
+                ? kLabSmallTableHalfSize
+                : glm::vec3(kLabSmallTableHalfSize.z, kLabSmallTableHalfSize.y, kLabSmallTableHalfSize.x)
+        });
+    }
+    for (const auto& tableInsetPlacement : scene.labTableInsetPlacements)
+    {
+        const bool tableRunsAlongX =
+            std::abs(std::cos(glm::radians(tableInsetPlacement.rotationY))) > 0.5f;
+        world.colliders.push_back({
+            tableInsetPlacement.position + glm::vec3(0.0f, kLabTableColliderCenterY, 0.0f),
+            tableRunsAlongX
+                ? kLabSmallTableHalfSize
+                : glm::vec3(kLabSmallTableHalfSize.z, kLabSmallTableHalfSize.y, kLabSmallTableHalfSize.x)
         });
     }
 
@@ -583,8 +653,14 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         addCylinderPropCollider(placement, kStorageContainerWideHalfSize);
 
     addAxisAlignedRotatedCollider(scene.labSkipRocksPlacement, kLabSkipRocksHalfSize);
+    addAxisAlignedRotatedCollider(scene.labComputerPlacement, kLabComputerHalfSize);
+    addAxisAlignedRotatedCollider(scene.labComputerScreenPlacement, kLabComputerScreenHalfSize);
     world.colliders.push_back({
         scene.labRocksPlacement.position + kLabRocksCollisionCenterOffset + glm::vec3(0.0f, kLabRocksHalfSize.y, 0.0f),
+        kLabRocksHalfSize
+    });
+    world.colliders.push_back({
+        scene.labCenterRocksPlacement.position + kLabRocksCollisionCenterOffset + glm::vec3(0.0f, kLabRocksHalfSize.y, 0.0f),
         kLabRocksHalfSize
     });
 
@@ -644,13 +720,12 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         }
         else if (interactable.name == "lab_decoder")
         {
-            const ModelPlacement& labInteractTable = scene.labTableDisplayPlacements.front();
-            const glm::vec3 tableInteractOffset =
-                rotateOffsetY(glm::vec3(0.0f, 0.0f, kLabTableInteractForwardOffset), labInteractTable.rotationY);
+            const glm::vec3 computerInteractOffset =
+                rotateOffsetY(glm::vec3(0.0f, 0.0f, kLabComputerInteractOffset), scene.labComputerPlacement.rotationY);
             interactable.pos = glm::vec3(
-                labInteractTable.position.x + tableInteractOffset.x,
+                scene.labComputerPlacement.position.x + computerInteractOffset.x,
                 0.0f,
-                labInteractTable.position.z + tableInteractOffset.z);
+                scene.labComputerPlacement.position.z + computerInteractOffset.z);
         }
         else if (interactable.name == "control_door")
         {

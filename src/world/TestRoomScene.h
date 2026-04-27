@@ -32,8 +32,13 @@ struct TestRoomScene
     std::vector<ModelPlacement> storageContainerTallPlacements;
     std::vector<ModelPlacement> storageContainerWidePlacements;
     std::vector<ModelPlacement> labTableDisplayPlacements;
+    std::vector<ModelPlacement> labSmallTableDisplayPlacements;
+    std::vector<ModelPlacement> labTableInsetPlacements;
+    ModelPlacement labComputerPlacement;
+    ModelPlacement labComputerScreenPlacement;
     ModelPlacement labSkipRocksPlacement;
     ModelPlacement labRocksPlacement;
+    ModelPlacement labCenterRocksPlacement;
     ModelPlacement oxygenConsolePlacement;
     std::vector<ModelPlacement> oxygenValvePlacements;
     ModelPlacement oxygenPosterPlacement;

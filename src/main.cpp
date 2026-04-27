@@ -27,6 +27,8 @@ static const unsigned int SCR_HEIGHT = 720;
 static const std::string kControlDoorCode = "0427";
 static const std::array<int, 3> kLabStabilizerTarget{ 2, 7, 3 };
 
+int screenWidth = SCR_WIDTH;
+int screenHeight = SCR_HEIGHT;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
@@ -53,6 +55,7 @@ float lastMouseY = SCR_HEIGHT * 0.5f;
 bool ePressedLastFrame = false;
 bool onePressedLastFrame = false;
 bool f3PressedLastFrame = false;
+bool f11PressedLastFrame = false;
 bool enterPressedLastFrame = false;
 bool spacePressedLastFrame = false;
 bool backspacePressedLastFrame = false;
@@ -63,6 +66,11 @@ bool leftPressedLastFrame = false;
 bool rightPressedLastFrame = false;
 std::array<bool, 10> digitPressedLastFrame{ false, false, false, false, false, false, false, false, false, false };
 bool showCollisionDebug = false;
+bool fullscreenEnabled = false;
+int windowedX = 100;
+int windowedY = 100;
+int windowedWidth = SCR_WIDTH;
+int windowedHeight = SCR_HEIGHT;
 bool gameStarted = false;
 bool showInteractPrompt = false;
 int nearestInteractableIndex = -1;
@@ -164,7 +172,53 @@ void completeLabStabilization()
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
-    glViewport(0, 0, width, height);
+    screenWidth = width > 0 ? width : 1;
+    screenHeight = height > 0 ? height : 1;
+    glViewport(0, 0, screenWidth, screenHeight);
+}
+
+void toggleFullscreen(GLFWwindow* window)
+{
+    if (!window)
+        return;
+
+    fullscreenEnabled = !fullscreenEnabled;
+    if (fullscreenEnabled)
+    {
+        glfwGetWindowPos(window, &windowedX, &windowedY);
+        glfwGetWindowSize(window, &windowedWidth, &windowedHeight);
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode = monitor ? glfwGetVideoMode(monitor) : nullptr;
+        if (!monitor || !mode)
+        {
+            fullscreenEnabled = false;
+            return;
+        }
+
+        if (monitor && mode)
+        {
+            glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+            screenWidth = mode->width;
+            screenHeight = mode->height;
+            glViewport(0, 0, screenWidth, screenHeight);
+        }
+    }
+    else
+    {
+        glfwSetWindowMonitor(window, nullptr, windowedX, windowedY, windowedWidth, windowedHeight, 0);
+        screenWidth = windowedWidth;
+        screenHeight = windowedHeight;
+        glViewport(0, 0, screenWidth, screenHeight);
+    }
+}
+
+void handleFullscreenToggle(GLFWwindow* window)
+{
+    const bool f11PressedNow = glfwGetKey(window, GLFW_KEY_F11) == GLFW_PRESS;
+    if (f11PressedNow && !f11PressedLastFrame)
+        toggleFullscreen(window);
+    f11PressedLastFrame = f11PressedNow;
 }
 
 glm::vec3 getCameraForward3D()
@@ -652,6 +706,9 @@ const std::array<std::string, 7>& getGlyph(char c)
     static const std::array<std::string, 7> PERIOD = {
         "00000","00000","00000","00000","00000","01100","01100"
     };
+    static const std::array<std::string, 7> HYPHEN = {
+        "00000","00000","00000","11111","00000","00000","00000"
+    };
     static const std::array<std::string, 7> A = {
         "01110","10001","10001","11111","10001","10001","10001"
     };
@@ -800,6 +857,7 @@ const std::array<std::string, 7>& getGlyph(char c)
     case '8': return EIGHT;
     case '9': return NINE;
     case '.': return PERIOD;
+    case '-': return HYPHEN;
     case ' ': return SPACE;
     default:  return SPACE;
     }
@@ -901,7 +959,7 @@ void drawProgressAndObjective(const GameState& s, Shader& hudShader, unsigned in
     if (s.controlUnlocked) progress = 5;
 
     hudShader.use();
-    hudShader.setVec2("screenSize", glm::vec2((float)SCR_WIDTH, (float)SCR_HEIGHT));
+    hudShader.setVec2("screenSize", glm::vec2((float)screenWidth, (float)screenHeight));
     glBindVertexArray(quadVAO);
 
     const float panelX = 16.0f;
@@ -952,11 +1010,11 @@ void drawInteractPrompt(Shader& hudShader, unsigned int quadVAO)
     const float panelPaddingY = 16.0f;
     const float panelW = textWidth + panelPaddingX * 2.0f;
     const float panelH = textHeight + panelPaddingY * 2.0f;
-    const float panelX = (SCR_WIDTH - panelW) * 0.5f;
-    const float panelY = SCR_HEIGHT - 120.0f;
+    const float panelX = (screenWidth - panelW) * 0.5f;
+    const float panelY = screenHeight - 120.0f;
 
     hudShader.use();
-    hudShader.setVec2("screenSize", glm::vec2((float)SCR_WIDTH, (float)SCR_HEIGHT));
+    hudShader.setVec2("screenSize", glm::vec2((float)screenWidth, (float)screenHeight));
     glBindVertexArray(quadVAO);
 
     drawRectHUD(hudShader, quadVAO, panelX + 4.0f, panelY + 4.0f, panelW, panelH, glm::vec3(0.0f, 0.0f, 0.0f));
@@ -982,15 +1040,15 @@ void drawControlCodePanel(Shader& hudShader, unsigned int quadVAO)
         return;
 
     hudShader.use();
-    hudShader.setVec2("screenSize", glm::vec2((float)SCR_WIDTH, (float)SCR_HEIGHT));
+    hudShader.setVec2("screenSize", glm::vec2((float)screenWidth, (float)screenHeight));
     glBindVertexArray(quadVAO);
 
-    const float panelW = 500.0f;
+    const float panelW = 580.0f;
     const float panelH = 250.0f;
-    const float panelX = (SCR_WIDTH - panelW) * 0.5f;
-    const float panelY = (SCR_HEIGHT - panelH) * 0.5f;
+    const float panelX = (screenWidth - panelW) * 0.5f;
+    const float panelY = (screenHeight - panelH) * 0.5f;
 
-    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT, glm::vec3(0.01f, 0.015f, 0.025f));
+    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)screenWidth, (float)screenHeight, glm::vec3(0.01f, 0.015f, 0.025f));
     drawRectHUD(hudShader, quadVAO, panelX + 5.0f, panelY + 5.0f, panelW, panelH, glm::vec3(0.0f, 0.0f, 0.0f));
     drawRectHUD(hudShader, quadVAO, panelX, panelY, panelW, panelH, glm::vec3(0.08f, 0.10f, 0.14f));
     drawRectHUD(hudShader, quadVAO, panelX + 4.0f, panelY + 4.0f, panelW - 8.0f, panelH - 8.0f, glm::vec3(0.13f, 0.16f, 0.22f));
@@ -1054,7 +1112,7 @@ void drawControlCodePanel(Shader& hudShader, unsigned int quadVAO)
         controlCodeRejected ? glm::vec3(1.0f, 0.35f, 0.35f) : glm::vec3(0.70f, 0.78f, 0.86f)
     );
 
-    const std::string hint = "ENTER CONFIRM  BACKSPACE DELETE  ESC CLOSE";
+    const std::string hint = "ENTER - CONFIRM  BACKSPACE - DELETE  ESC - CLOSE";
     const float hintPixel = 1.8f;
     drawTextHUD(
         hudShader,
@@ -1075,15 +1133,15 @@ void drawLabStabilizerPanel(Shader& hudShader, unsigned int quadVAO)
         return;
 
     hudShader.use();
-    hudShader.setVec2("screenSize", glm::vec2((float)SCR_WIDTH, (float)SCR_HEIGHT));
+    hudShader.setVec2("screenSize", glm::vec2((float)screenWidth, (float)screenHeight));
     glBindVertexArray(quadVAO);
 
     const float panelW = 560.0f;
     const float panelH = 330.0f;
-    const float panelX = (SCR_WIDTH - panelW) * 0.5f;
-    const float panelY = (SCR_HEIGHT - panelH) * 0.5f;
+    const float panelX = (screenWidth - panelW) * 0.5f;
+    const float panelY = (screenHeight - panelH) * 0.5f;
 
-    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT, glm::vec3(0.01f, 0.015f, 0.025f));
+    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)screenWidth, (float)screenHeight, glm::vec3(0.01f, 0.015f, 0.025f));
     drawRectHUD(hudShader, quadVAO, panelX + 5.0f, panelY + 5.0f, panelW, panelH, glm::vec3(0.0f, 0.0f, 0.0f));
     drawRectHUD(hudShader, quadVAO, panelX, panelY, panelW, panelH, glm::vec3(0.08f, 0.10f, 0.14f));
     drawRectHUD(hudShader, quadVAO, panelX + 4.0f, panelY + 4.0f, panelW - 8.0f, panelH - 8.0f, glm::vec3(0.13f, 0.16f, 0.22f));
@@ -1144,7 +1202,7 @@ void drawLabStabilizerPanel(Shader& hudShader, unsigned int quadVAO)
         labStabilizerRejected ? glm::vec3(1.0f, 0.35f, 0.35f) : glm::vec3(0.70f, 0.78f, 0.86f)
     );
 
-    const std::string hint = "ARROWS ADJUST  ENTER ANALYZE  ESC CLOSE";
+    const std::string hint = "ARROWS - ADJUST  ENTER - ANALYZE  ESC - CLOSE";
     const float hintPixel = 1.55f;
     drawTextHUD(
         hudShader,
@@ -1182,11 +1240,11 @@ void drawSubtitle(Shader& hudShader, unsigned int quadVAO)
     const float panelPaddingY = 16.0f;
     const float panelW = maxWidth + panelPaddingX * 2.0f;
     const float panelH = lines.size() * lineHeight + panelPaddingY * 2.0f - 10.0f;
-    const float panelX = (SCR_WIDTH - panelW) * 0.5f;
-    const float panelY = SCR_HEIGHT - 220.0f;
+    const float panelX = (screenWidth - panelW) * 0.5f;
+    const float panelY = screenHeight - 220.0f;
 
     hudShader.use();
-    hudShader.setVec2("screenSize", glm::vec2((float)SCR_WIDTH, (float)SCR_HEIGHT));
+    hudShader.setVec2("screenSize", glm::vec2((float)screenWidth, (float)screenHeight));
     glBindVertexArray(quadVAO);
 
     drawRectHUD(hudShader, quadVAO, panelX, panelY, panelW, panelH, glm::vec3(0.02f, 0.02f, 0.03f));
@@ -1223,10 +1281,10 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
         return;
 
     hudShader.use();
-    hudShader.setVec2("screenSize", glm::vec2((float)SCR_WIDTH, (float)SCR_HEIGHT));
+    hudShader.setVec2("screenSize", glm::vec2((float)screenWidth, (float)screenHeight));
     glBindVertexArray(quadVAO);
 
-    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT, glm::vec3(0.01f, 0.02f, 0.03f));
+    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)screenWidth, (float)screenHeight, glm::vec3(0.01f, 0.02f, 0.03f));
 
     const bool playerLost = gameState.playerDied;
     const std::string title = playerLost ? "MISSION FAILED" : "MISSION COMPLETE";
@@ -1241,7 +1299,7 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
         hudShader,
         quadVAO,
         title,
-        (SCR_WIDTH - getTextWidth(title, titlePixel, titlePixel)) * 0.5f,
+        (screenWidth - getTextWidth(title, titlePixel, titlePixel)) * 0.5f,
         240.0f,
         titlePixel,
         playerLost ? glm::vec3(1.0f, 0.78f, 0.78f) : glm::vec3(0.85f, 0.97f, 1.0f)
@@ -1251,7 +1309,7 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
         hudShader,
         quadVAO,
         subtitle,
-        (SCR_WIDTH - getTextWidth(subtitle, subtitlePixel, subtitlePixel)) * 0.5f,
+        (screenWidth - getTextWidth(subtitle, subtitlePixel, subtitlePixel)) * 0.5f,
         320.0f,
         subtitlePixel,
         playerLost ? glm::vec3(1.0f, 0.32f, 0.32f) : glm::vec3(0.35f, 1.0f, 0.65f)
@@ -1261,7 +1319,7 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
         hudShader,
         quadVAO,
         hint,
-        (SCR_WIDTH - getTextWidth(hint, hintPixel, hintPixel)) * 0.5f,
+        (screenWidth - getTextWidth(hint, hintPixel, hintPixel)) * 0.5f,
         392.0f,
         hintPixel,
         glm::vec3(0.80f, 0.86f, 0.92f)
@@ -1273,10 +1331,10 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
 void drawStartMenu(Shader& hudShader, unsigned int quadVAO, float timeSeconds)
 {
     hudShader.use();
-    hudShader.setVec2("screenSize", glm::vec2((float)SCR_WIDTH, (float)SCR_HEIGHT));
+    hudShader.setVec2("screenSize", glm::vec2((float)screenWidth, (float)screenHeight));
     glBindVertexArray(quadVAO);
 
-    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT, glm::vec3(0.01f, 0.015f, 0.03f));
+    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)screenWidth, (float)screenHeight, glm::vec3(0.01f, 0.015f, 0.03f));
 
     const std::string title = "SPACE STATION ESCAPE";
     const std::string subtitle = "RESTORE THE STATION AND FIND THE EXIT";
@@ -1287,13 +1345,18 @@ void drawStartMenu(Shader& hudShader, unsigned int quadVAO, float timeSeconds)
     const float startPixel = 3.0f;
     const float exitPixel = 2.1f;
     const float pulse = 0.65f + 0.35f * std::sin(timeSeconds * 3.5f);
+    const float centerY = screenHeight * 0.5f;
+    const float titleY = centerY - 150.0f;
+    const float subtitleY = centerY - 60.0f;
+    const float startY = centerY + 45.0f;
+    const float exitY = centerY + 110.0f;
 
     drawTextHUD(
         hudShader,
         quadVAO,
         title,
-        (SCR_WIDTH - getTextWidth(title, titlePixel, titlePixel)) * 0.5f,
-        210.0f,
+        (screenWidth - getTextWidth(title, titlePixel, titlePixel)) * 0.5f,
+        titleY,
         titlePixel,
         glm::vec3(0.82f, 0.94f, 1.0f)
     );
@@ -1302,8 +1365,8 @@ void drawStartMenu(Shader& hudShader, unsigned int quadVAO, float timeSeconds)
         hudShader,
         quadVAO,
         subtitle,
-        (SCR_WIDTH - getTextWidth(subtitle, subtitlePixel, subtitlePixel)) * 0.5f,
-        300.0f,
+        (screenWidth - getTextWidth(subtitle, subtitlePixel, subtitlePixel)) * 0.5f,
+        subtitleY,
         subtitlePixel,
         glm::vec3(0.56f, 0.68f, 0.80f)
     );
@@ -1312,8 +1375,8 @@ void drawStartMenu(Shader& hudShader, unsigned int quadVAO, float timeSeconds)
         hudShader,
         quadVAO,
         startText,
-        (SCR_WIDTH - getTextWidth(startText, startPixel, startPixel)) * 0.5f,
-        405.0f,
+        (screenWidth - getTextWidth(startText, startPixel, startPixel)) * 0.5f,
+        startY,
         startPixel,
         glm::vec3(0.45f + 0.35f * pulse, 0.82f + 0.12f * pulse, 1.0f)
     );
@@ -1322,8 +1385,8 @@ void drawStartMenu(Shader& hudShader, unsigned int quadVAO, float timeSeconds)
         hudShader,
         quadVAO,
         exitText,
-        (SCR_WIDTH - getTextWidth(exitText, exitPixel, exitPixel)) * 0.5f,
-        470.0f,
+        (screenWidth - getTextWidth(exitText, exitPixel, exitPixel)) * 0.5f,
+        exitY,
         exitPixel,
         glm::vec3(0.50f, 0.58f, 0.68f)
     );
@@ -1343,7 +1406,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Space Station Escape", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "Space Station Escape", nullptr, nullptr);
     if (!window)
     {
         std::cerr << "Failed to create GLFW window\n";
@@ -1716,6 +1779,8 @@ int main()
     StaticModel containerTall(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/container-tall.obj");
     StaticModel containerWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/container-wide.obj");
     StaticModel tableDisplay(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/table-display.obj");
+    StaticModel tableDisplaySmall(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/table-display-small.obj");
+    StaticModel tableInset(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/table-inset.obj");
     StaticModel skipRocks(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/skip-rocks.obj");
     StaticModel rocks(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/rocks.obj");
     StaticModel computerScreen(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer-screen.obj");
@@ -1766,6 +1831,7 @@ int main()
         float currentFrame = (float)glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+        handleFullscreenToggle(window);
 
         if (!gameStarted)
         {
@@ -1958,7 +2024,7 @@ int main()
         shader.use();
 
         glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, glm::vec3(0.0f, 1.0f, 0.0f));
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / (float)screenHeight, 0.1f, 100.0f);
 
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
@@ -2058,8 +2124,15 @@ int main()
             }
             for (const auto& labTableDisplayPlacement : testRoomScene.labTableDisplayPlacements)
                 drawStaticModel(tableDisplay, labTableDisplayPlacement);
+            for (const auto& placement : testRoomScene.labSmallTableDisplayPlacements)
+                drawStaticModel(tableDisplaySmall, placement);
+            for (const auto& placement : testRoomScene.labTableInsetPlacements)
+                drawStaticModel(tableInset, placement);
+            drawStaticModel(computer, testRoomScene.labComputerPlacement);
+            drawStaticModel(computerScreen, testRoomScene.labComputerScreenPlacement);
             drawStaticModel(skipRocks, testRoomScene.labSkipRocksPlacement);
             drawStaticModel(rocks, testRoomScene.labRocksPlacement);
+            drawStaticModel(rocks, testRoomScene.labCenterRocksPlacement);
             drawStaticModel(computerScreen, testRoomScene.controlTerminalPlacement);
             for (const auto& placement : testRoomScene.controlComputerPlacements)
                 drawStaticModel(computer, placement);
@@ -2230,3 +2303,4 @@ int main()
     glfwTerminate();
     return 0;
 }
+
