@@ -70,6 +70,8 @@ bool playerIsMoving = false;
 bool playerIsRunning = false;
 bool playerDanceTriggered = false;
 bool playerIsDancing = false;
+bool deathAnimationTriggered = false;
+bool deathAnimationFinished = false;
 bool controlCodePanelOpen = false;
 bool controlCodeRejected = false;
 std::string controlCodeInput = "";
@@ -83,7 +85,8 @@ enum class PlayerAnimationState
     Idle,
     Walk,
     Run,
-    Dance
+    Dance,
+    Die
 };
 
 AnimatedCharacter* getCharacterForState(
@@ -91,7 +94,8 @@ AnimatedCharacter* getCharacterForState(
     AnimatedCharacter& idleCharacter,
     AnimatedCharacter& walkCharacter,
     AnimatedCharacter& runCharacter,
-    AnimatedCharacter& danceCharacter)
+    AnimatedCharacter& danceCharacter,
+    AnimatedCharacter& deathCharacter)
 {
     switch (state)
     {
@@ -101,6 +105,8 @@ AnimatedCharacter* getCharacterForState(
         return runCharacter.isLoaded() ? &runCharacter : nullptr;
     case PlayerAnimationState::Dance:
         return danceCharacter.isLoaded() ? &danceCharacter : nullptr;
+    case PlayerAnimationState::Die:
+        return deathCharacter.isLoaded() ? &deathCharacter : nullptr;
     case PlayerAnimationState::Idle:
     default:
         return idleCharacter.isLoaded() ? &idleCharacter : nullptr;
@@ -551,6 +557,8 @@ void updateStoryEvents()
     if (gameState.playerDied && !seenPlayerDeath)
     {
         seenPlayerDeath = true;
+        deathAnimationTriggered = false;
+        deathAnimationFinished = false;
         interruptSubtitles();
         queueSubtitle("INCORRECT SEQUENCE DETECTED", 3.0f);
         queueSubtitle("OXYGEN PURGE TRIGGERED", 2.8f);
@@ -1210,7 +1218,8 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
     if (!gameState.gameFinished && !gameState.playerDied)
         return;
 
-    if (gameState.playerDied && (!currentSubtitle.empty() || !subtitleQueue.empty()))
+    if (gameState.playerDied &&
+        (!currentSubtitle.empty() || !subtitleQueue.empty() || !deathAnimationTriggered || !deathAnimationFinished))
         return;
 
     hudShader.use();
@@ -1404,6 +1413,12 @@ int main()
         false
     );
 
+    AnimatedCharacter deathCharacter(
+        std::string(PROJECT_ROOT) + "/assets/animation/character/dying.glb",
+        astronautTexture,
+        false
+    );
+
     if (!idleCharacter.isLoaded())
         std::cerr << "Idle character failed: " << idleCharacter.getError() << "\n";
     if (!walkCharacter.isLoaded())
@@ -1412,6 +1427,8 @@ int main()
         std::cerr << "Run character failed: " << runCharacter.getError() << "\n";
     if (!danceCharacter.isLoaded())
         std::cerr << "Dance character failed: " << danceCharacter.getError() << "\n";
+    if (!deathCharacter.isLoaded())
+        std::cerr << "Death character failed: " << deathCharacter.getError() << "\n";
 
     float vertices[] = {
         -0.5f, -0.5f, -0.5f,
@@ -1788,14 +1805,27 @@ int main()
         }
 
         processInput(window);
-        if (playerDanceTriggered)
+        if (gameState.playerDied)
+        {
+            const bool deathDialogFinished = currentSubtitle.empty() && subtitleQueue.empty();
+            if (deathDialogFinished && !deathAnimationTriggered)
+            {
+                currentAnimationState = PlayerAnimationState::Die;
+                deathCharacter.update(0.0f, true);
+                deathAnimationTriggered = true;
+                deathAnimationFinished = false;
+            }
+        }
+        else if (playerDanceTriggered)
         {
             currentAnimationState = PlayerAnimationState::Dance;
             danceCharacter.update(0.0f, true);
         }
 
         PlayerAnimationState desiredAnimationState = PlayerAnimationState::Idle;
-        if (playerIsRunning)
+        if (gameState.playerDied && deathAnimationTriggered)
+            desiredAnimationState = PlayerAnimationState::Die;
+        else if (playerIsRunning)
             desiredAnimationState = PlayerAnimationState::Run;
         else if (playerIsMoving)
             desiredAnimationState = PlayerAnimationState::Walk;
@@ -1805,9 +1835,15 @@ int main()
             idleCharacter,
             walkCharacter,
             runCharacter,
-            danceCharacter);
+            danceCharacter,
+            deathCharacter);
 
-        if (currentAnimationState == PlayerAnimationState::Dance)
+        if (currentAnimationState == PlayerAnimationState::Die)
+        {
+            deathCharacter.update(deltaTime);
+            deathAnimationFinished = deathCharacter.isFinished();
+        }
+        else if (currentAnimationState == PlayerAnimationState::Dance)
         {
             danceCharacter.update(deltaTime);
             if (danceCharacter.isFinished())
@@ -1823,7 +1859,8 @@ int main()
             idleCharacter,
             walkCharacter,
             runCharacter,
-            danceCharacter);
+            danceCharacter,
+            deathCharacter);
 
         if (activeCharacter != previousActiveCharacter &&
             activeCharacter &&
@@ -1834,7 +1871,9 @@ int main()
             activeCharacter->setNormalizedTime(previousActiveCharacter->getNormalizedTime());
         }
 
-        if (activeCharacter && currentAnimationState != PlayerAnimationState::Dance)
+        if (activeCharacter &&
+            currentAnimationState != PlayerAnimationState::Dance &&
+            currentAnimationState != PlayerAnimationState::Die)
             activeCharacter->update(deltaTime);
 
         playerIsDancing = (currentAnimationState == PlayerAnimationState::Dance);
