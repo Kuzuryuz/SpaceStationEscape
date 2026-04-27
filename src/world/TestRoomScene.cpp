@@ -61,6 +61,7 @@ namespace
     constexpr float kStorageNoteInteractBackOffset = 2.0f;
     const glm::vec3 kOxygenConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kOxygenConsoleColor(0.78f, 0.78f, 0.20f);
+    const glm::vec3 kOxygenPosterScale(5.0f, 5.0f, 1.0f);
     constexpr float kOxygenValveHeight = -0.05f;
     constexpr float kOxygenValveScale = 2.5f;
     constexpr float kOxygenValveSpacing = 1.25f;
@@ -180,6 +181,12 @@ TestRoomScene createTestRoomScene()
         { oxygenRoomCenter + glm::vec3(-kOxygenValveSpacing, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(1.0f, 0.30f, 0.24f) },
         { oxygenRoomCenter + glm::vec3(0.0f, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(0.20f, 0.58f, 1.0f) },
         { oxygenRoomCenter + glm::vec3(kOxygenValveSpacing, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(0.25f, 0.95f, 0.38f) }
+    };
+    scene.oxygenPosterPlacement = {
+        oxygenRoomCenter + glm::vec3(-kRoomLargeHalfExtent + 0.01f, 2.5f, 4.0f),
+        kOxygenPosterScale,
+        90.0f,
+        glm::vec3(1.0f)
     };
 
     scene.powerConsolePlacement = {

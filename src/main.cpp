@@ -1705,6 +1705,7 @@ int main()
     StaticModel computer(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer.obj");
     StaticModel computerWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer-wide.obj");
     StaticModel displayWallWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/display-wall-wide.obj");
+    StaticModel oxygenPoster(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/poster_oxygen.obj");
     StaticModel oxygenPipeUp(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/pipe-up.obj");
     StaticModel oxygenPipeDown(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/pipe-down.obj");
     const std::string puzzleTexture =
@@ -1972,6 +1973,7 @@ int main()
                 drawStaticModel(containerTall, placement);
             for (const auto& placement : testRoomScene.storageContainerWidePlacements)
                 drawStaticModel(containerWide, placement);
+            drawStaticModel(oxygenPoster, testRoomScene.oxygenPosterPlacement);
             for (int valveIndex = 0; valveIndex < static_cast<int>(testRoomScene.oxygenValvePlacements.size()); ++valveIndex)
             {
                 ModelPlacement valvePlacement = testRoomScene.oxygenValvePlacements[valveIndex];

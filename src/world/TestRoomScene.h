@@ -36,6 +36,7 @@ struct TestRoomScene
     ModelPlacement labRocksPlacement;
     ModelPlacement oxygenConsolePlacement;
     std::vector<ModelPlacement> oxygenValvePlacements;
+    ModelPlacement oxygenPosterPlacement;
     ModelPlacement powerConsolePlacement;
     ModelPlacement controlTerminalPlacement;
     std::vector<ModelPlacement> controlComputerPlacements;
