@@ -1722,6 +1722,7 @@ int main()
     StaticModel computer(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer.obj");
     StaticModel computerWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer-wide.obj");
     StaticModel displayWallWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/display-wall-wide.obj");
+    StaticModel labPoster(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/poster_lab.obj");
     StaticModel oxygenPoster(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/poster_oxygen.obj");
     StaticModel oxygenPipeUp(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/pipe-up.obj");
     StaticModel oxygenPipeDown(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/pipe-down.obj");
@@ -2060,6 +2061,7 @@ int main()
                 drawStaticModel(tableDisplay, labTableDisplayPlacement);
             drawStaticModel(skipRocks, testRoomScene.labSkipRocksPlacement);
             drawStaticModel(rocks, testRoomScene.labRocksPlacement);
+            drawStaticModel(labPoster, testRoomScene.labPosterPlacement);
             drawStaticModel(computerScreen, testRoomScene.controlTerminalPlacement);
             for (const auto& placement : testRoomScene.controlComputerPlacements)
                 drawStaticModel(computer, placement);
