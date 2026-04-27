@@ -74,6 +74,7 @@ namespace
     const glm::vec3 kOxygenConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kOxygenConsoleColor(0.78f, 0.78f, 0.20f);
     const glm::vec3 kOxygenPosterScale(5.0f, 5.0f, 1.0f);
+    const glm::vec3 kLabPosterScale(5.0f, 5.0f, 1.0f);
     constexpr float kOxygenValveHeight = -0.05f;
     constexpr float kOxygenValveScale = 2.5f;
     constexpr float kOxygenValveSpacing = 1.25f;
@@ -345,6 +346,12 @@ TestRoomScene createTestRoomScene()
             -kLabRocksCollisionCenterOffset.z),
         glm::vec3(kLabRocksScale),
         0.0f,
+        glm::vec3(1.0f)
+    };
+    scene.labPosterPlacement = {
+        labRoomCenter + glm::vec3(kRoomLargeHalfExtent - 0.0f, 2.5f, -4.0f),
+        kLabPosterScale,
+        -90.0f,
         glm::vec3(1.0f)
     };
 

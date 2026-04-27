@@ -39,6 +39,7 @@ struct TestRoomScene
     ModelPlacement labSkipRocksPlacement;
     ModelPlacement labRocksPlacement;
     ModelPlacement labCenterRocksPlacement;
+    ModelPlacement labPosterPlacement;
     ModelPlacement oxygenConsolePlacement;
     std::vector<ModelPlacement> oxygenValvePlacements;
     ModelPlacement oxygenPosterPlacement;
