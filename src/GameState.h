@@ -5,6 +5,7 @@
 struct GameState
 {
     static constexpr int kOxygenValveCount = 3;
+    static constexpr int kPowerWireCount = 5;
 
     int currentRoom = -1;
 
@@ -21,6 +22,7 @@ struct GameState
     bool gameFinished = false;
     bool playerDied = false;
     bool oxygenPuzzleFailed = false;
+    bool powerPuzzleFailed = false;
 
     int oxygenValveProgress = 0;
     std::array<bool, kOxygenValveCount> oxygenValvesOpened{ false, false, false };

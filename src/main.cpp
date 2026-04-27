@@ -27,6 +27,15 @@ static const unsigned int SCR_HEIGHT = 720;
 static const std::string kControlDoorCode = "0427";
 static const std::array<int, 3> kLabStabilizerTarget{ 2, 7, 3 };
 
+enum PowerWireId
+{
+    kPowerWireRed = 0,
+    kPowerWireGreen = 1,
+    kPowerWireYellow = 2,
+    kPowerWireBlue = 3,
+    kPowerWirePink = 4
+};
+
 int screenWidth = SCR_WIDTH;
 int screenHeight = SCR_HEIGHT;
 float deltaTime = 0.0f;
@@ -87,6 +96,13 @@ bool labStabilizerPanelOpen = false;
 bool labStabilizerRejected = false;
 std::array<int, 3> labStabilizerValues{ 0, 0, 0 };
 int labStabilizerSelected = 0;
+bool powerWirePanelOpen = false;
+bool powerWireResolving = false;
+bool powerWireCutWasCorrect = false;
+std::array<bool, GameState::kPowerWireCount> powerWireCut{ false, false, false, false, false };
+std::vector<int> powerWireCutOrder;
+int powerWireSelected = 0;
+float powerWireResolveTimer = 0.0f;
 
 enum class PlayerAnimationState
 {
@@ -168,6 +184,76 @@ void completeLabStabilization()
     labStabilizerPanelOpen = false;
     labStabilizerRejected = false;
     std::cout << "AI: Trace markings decoded\n";
+}
+
+void openPowerWirePanel()
+{
+    powerWirePanelOpen = true;
+    powerWireResolving = false;
+    powerWireCutWasCorrect = false;
+    powerWireCut.fill(false);
+    powerWireCutOrder.clear();
+    powerWireSelected = 0;
+    powerWireResolveTimer = 0.0f;
+}
+
+void closePowerWirePanel()
+{
+    powerWirePanelOpen = false;
+    powerWireResolving = false;
+    powerWireCutWasCorrect = false;
+    powerWireCut.fill(false);
+    powerWireCutOrder.clear();
+    powerWireResolveTimer = 0.0f;
+}
+
+bool isValidPowerWireOrderPrefix(const std::vector<int>& order)
+{
+    static const std::array<int, GameState::kPowerWireCount> kExpectedOrder{
+        kPowerWireBlue,
+        kPowerWireRed,
+        kPowerWirePink,
+        kPowerWireGreen,
+        kPowerWireYellow
+    };
+
+    if (order.size() > kExpectedOrder.size())
+        return false;
+
+    for (size_t i = 0; i < order.size(); ++i)
+    {
+        if (order[i] != kExpectedOrder[i])
+            return false;
+    }
+
+    return true;
+}
+
+void completePowerRestore()
+{
+    gameState.powerFixed = true;
+    gameState.powerPuzzleFailed = false;
+    gameState.storageUnlocked = true;
+    gameState.labUnlocked = true;
+    closePowerWirePanel();
+
+    for (auto& door : world.doors)
+    {
+        if (door.name == "Storage Door" || door.name == "Lab Door")
+            door.open = true;
+    }
+
+    std::cout << "AI: Main power restored\n";
+    std::cout << "AI: Storage and Lab access online\n";
+}
+
+void failPowerPuzzle()
+{
+    gameState.powerPuzzleFailed = true;
+    gameState.playerDied = true;
+    gameState.gameFinished = true;
+    closePowerWirePanel();
+    std::cout << "AI: Incorrect wire cut detected\n";
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
@@ -328,6 +414,18 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 
 void processInput(GLFWwindow* window)
 {
+    if (powerWirePanelOpen && powerWireResolving)
+    {
+        powerWireResolveTimer -= deltaTime;
+        if (powerWireResolveTimer <= 0.0f)
+        {
+            if (powerWireCutWasCorrect)
+                completePowerRestore();
+            else
+                failPowerPuzzle();
+        }
+    }
+
     const bool escapePressedNow = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
     if (escapePressedNow && !escapePressedLastFrame)
     {
@@ -341,6 +439,10 @@ void processInput(GLFWwindow* window)
         {
             labStabilizerPanelOpen = false;
             labStabilizerRejected = false;
+        }
+        else if (powerWirePanelOpen && !powerWireResolving)
+        {
+            closePowerWirePanel();
         }
         else
         {
@@ -441,6 +543,67 @@ void processInput(GLFWwindow* window)
                 completeLabStabilization();
             else
                 labStabilizerRejected = true;
+        }
+        enterPressedLastFrame = enterPressedNow;
+
+        playerIsMoving = false;
+        playerIsRunning = false;
+        playerDanceTriggered = false;
+        return;
+    }
+
+    if (powerWirePanelOpen)
+    {
+        const bool upPressedNow = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS;
+        const bool downPressedNow = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS;
+
+        if (!powerWireResolving)
+        {
+            if (upPressedNow && !upPressedLastFrame)
+                powerWireSelected = (powerWireSelected + GameState::kPowerWireCount - 1) % GameState::kPowerWireCount;
+            if (downPressedNow && !downPressedLastFrame)
+                powerWireSelected = (powerWireSelected + 1) % GameState::kPowerWireCount;
+        }
+
+        upPressedLastFrame = upPressedNow;
+        downPressedLastFrame = downPressedNow;
+        leftPressedLastFrame = false;
+        rightPressedLastFrame = false;
+
+        const bool enterPressedNow = glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS ||
+            glfwGetKey(window, GLFW_KEY_KP_ENTER) == GLFW_PRESS;
+        if (!powerWireResolving && enterPressedNow && !enterPressedLastFrame)
+        {
+            if (!powerWireCut[powerWireSelected])
+            {
+                powerWireCut[powerWireSelected] = true;
+                powerWireCutOrder.push_back(powerWireSelected);
+
+                if (!isValidPowerWireOrderPrefix(powerWireCutOrder))
+                {
+                    powerWireCutWasCorrect = false;
+                    powerWireResolving = true;
+                    powerWireResolveTimer = 0.95f;
+                }
+                else if (powerWireCutOrder.size() == GameState::kPowerWireCount)
+                {
+                    powerWireCutWasCorrect = true;
+                    powerWireResolving = true;
+                    powerWireResolveTimer = 0.75f;
+                }
+                else
+                {
+                    for (int i = 1; i <= GameState::kPowerWireCount; ++i)
+                    {
+                        const int nextIndex = (powerWireSelected + i) % GameState::kPowerWireCount;
+                        if (!powerWireCut[nextIndex])
+                        {
+                            powerWireSelected = nextIndex;
+                            break;
+                        }
+                    }
+                }
+            }
         }
         enterPressedLastFrame = enterPressedNow;
 
@@ -614,9 +777,18 @@ void updateStoryEvents()
         deathAnimationTriggered = false;
         deathAnimationFinished = false;
         interruptSubtitles();
-        queueSubtitle("INCORRECT SEQUENCE DETECTED", 3.0f);
-        queueSubtitle("OXYGEN PURGE TRIGGERED", 2.8f);
-        queueSubtitle("ATMOSPHERIC PRESSURE LOST", 3.0f);
+        if (gameState.powerPuzzleFailed)
+        {
+            queueSubtitle("INCORRECT WIRE CUT DETECTED", 3.0f);
+            queueSubtitle("POWER CASCADE TRIGGERED", 2.8f);
+            queueSubtitle("CRITICAL SYSTEMS OFFLINE", 3.0f);
+        }
+        else
+        {
+            queueSubtitle("INCORRECT SEQUENCE DETECTED", 3.0f);
+            queueSubtitle("OXYGEN PURGE TRIGGERED", 2.8f);
+            queueSubtitle("ATMOSPHERIC PRESSURE LOST", 3.0f);
+        }
         queueSubtitle("CREW VITAL SIGNS LOST", 2.8f);
     }
 }
@@ -639,6 +811,7 @@ void updateInteractPrompt()
     showInteractPrompt =
         !controlCodePanelOpen &&
         !labStabilizerPanelOpen &&
+        !powerWirePanelOpen &&
         (nearestInteractableIndex != -1) &&
         !gameState.gameFinished &&
         !gameState.playerDied;
@@ -648,7 +821,7 @@ void handleInteraction(GLFWwindow* window)
 {
     bool ePressedNow = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
 
-    if (controlCodePanelOpen || labStabilizerPanelOpen)
+    if (controlCodePanelOpen || labStabilizerPanelOpen || powerWirePanelOpen)
     {
         ePressedLastFrame = ePressedNow;
         return;
@@ -673,6 +846,16 @@ void handleInteraction(GLFWwindow* window)
         {
             labStabilizerPanelOpen = true;
             labStabilizerRejected = false;
+            ePressedLastFrame = ePressedNow;
+            return;
+        }
+
+        if (nearestInteractableIndex != -1 &&
+            world.interactables[nearestInteractableIndex].name == "power_console" &&
+            gameState.oxygenFixed &&
+            !gameState.powerFixed)
+        {
+            openPowerWirePanel();
             ePressedLastFrame = ePressedNow;
             return;
         }
@@ -1127,6 +1310,208 @@ void drawControlCodePanel(Shader& hudShader, unsigned int quadVAO)
     glBindVertexArray(0);
 }
 
+void drawSteppedWireBreak(
+    Shader& hudShader,
+    unsigned int quadVAO,
+    float startX,
+    float centerY,
+    float thickness,
+    const glm::vec3& color,
+    bool bendUp)
+{
+    const float segment = thickness * 1.2f;
+    const float step = thickness * 0.55f;
+    const float bandY = centerY - thickness * 0.5f;
+    float currentX = startX;
+    float currentY = bandY;
+    const float dirY = bendUp ? -step : step;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        drawRectHUD(hudShader, quadVAO, currentX, currentY, segment, thickness, color);
+        currentX += segment * 0.72f;
+        currentY += dirY;
+    }
+}
+
+void drawPowerWireRow(
+    Shader& hudShader,
+    unsigned int quadVAO,
+    float x,
+    float y,
+    float width,
+    float height,
+    const glm::vec3& wireColor,
+    bool selected,
+    bool cut,
+    bool highlightSelected)
+{
+    const glm::vec3 rowOuter = selected ? glm::vec3(0.19f, 0.28f, 0.36f) : glm::vec3(0.02f, 0.025f, 0.035f);
+    const glm::vec3 rowInner = selected ? glm::vec3(0.12f, 0.18f, 0.24f) : glm::vec3(0.06f, 0.08f, 0.11f);
+    drawRectHUD(hudShader, quadVAO, x, y, width, height, rowOuter);
+    drawRectHUD(hudShader, quadVAO, x + 3.0f, y + 3.0f, width - 6.0f, height - 6.0f, rowInner);
+
+    const float connectorW = 18.0f;
+    const float wireThickness = 12.0f;
+    const float wireY = y + (height - wireThickness) * 0.5f;
+    const float centerY = y + height * 0.5f;
+    const float leftX = x + 28.0f;
+    const float rightX = x + width - 28.0f - connectorW;
+    const float wireStart = leftX + connectorW;
+    const float wireEnd = rightX;
+    const float wireLength = wireEnd - wireStart;
+    const float cutGap = 56.0f;
+
+    drawRectHUD(hudShader, quadVAO, leftX, wireY - 3.0f, connectorW, wireThickness + 6.0f, glm::vec3(0.18f, 0.20f, 0.24f));
+    drawRectHUD(hudShader, quadVAO, rightX, wireY - 3.0f, connectorW, wireThickness + 6.0f, glm::vec3(0.18f, 0.20f, 0.24f));
+
+    if (!cut)
+    {
+        drawRectHUD(hudShader, quadVAO, wireStart, wireY, wireLength, wireThickness, wireColor);
+        drawRectHUD(hudShader, quadVAO, wireStart, wireY + 2.0f, wireLength, 3.0f, glm::min(wireColor + glm::vec3(0.18f), glm::vec3(1.0f)));
+        if (highlightSelected)
+        {
+            const float pulse = 0.45f + 0.35f * std::sin(lastFrame * 6.0f);
+            drawRectHUD(
+                hudShader,
+                quadVAO,
+                wireStart,
+                wireY - 4.0f,
+                wireLength,
+                2.0f,
+                glm::vec3(0.75f + 0.15f * pulse, 0.85f + 0.10f * pulse, 1.0f)
+            );
+        }
+        return;
+    }
+
+    const float cutCenter = wireStart + wireLength * 0.5f;
+    const float leftLen = glm::max(0.0f, cutCenter - cutGap * 0.5f - wireStart - 10.0f);
+    const float rightStart = cutCenter + cutGap * 0.5f + 10.0f;
+    const float rightLen = glm::max(0.0f, wireEnd - rightStart);
+
+    if (leftLen > 0.0f)
+    {
+        drawRectHUD(hudShader, quadVAO, wireStart, wireY, leftLen, wireThickness, wireColor);
+        drawRectHUD(hudShader, quadVAO, wireStart, wireY + 2.0f, leftLen, 3.0f, glm::min(wireColor + glm::vec3(0.16f), glm::vec3(1.0f)));
+    }
+
+    if (rightLen > 0.0f)
+    {
+        drawRectHUD(hudShader, quadVAO, rightStart, wireY, rightLen, wireThickness, wireColor);
+        drawRectHUD(hudShader, quadVAO, rightStart, wireY + 2.0f, rightLen, 3.0f, glm::min(wireColor + glm::vec3(0.16f), glm::vec3(1.0f)));
+    }
+
+    drawSteppedWireBreak(hudShader, quadVAO, cutCenter - cutGap * 0.5f - 26.0f, centerY, wireThickness, wireColor, true);
+    drawSteppedWireBreak(hudShader, quadVAO, cutCenter + cutGap * 0.5f - 2.0f, centerY, wireThickness, wireColor, false);
+}
+
+void drawPowerWirePanel(Shader& hudShader, unsigned int quadVAO)
+{
+    if (!powerWirePanelOpen)
+        return;
+
+    hudShader.use();
+    hudShader.setVec2("screenSize", glm::vec2((float)screenWidth, (float)screenHeight));
+    glBindVertexArray(quadVAO);
+
+    const float panelW = 740.0f;
+    const float panelH = 470.0f;
+    const float panelX = (screenWidth - panelW) * 0.5f;
+    const float panelY = (screenHeight - panelH) * 0.5f;
+
+    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)screenWidth, (float)screenHeight, glm::vec3(0.01f, 0.015f, 0.025f));
+    drawRectHUD(hudShader, quadVAO, panelX + 5.0f, panelY + 5.0f, panelW, panelH, glm::vec3(0.0f, 0.0f, 0.0f));
+    drawRectHUD(hudShader, quadVAO, panelX, panelY, panelW, panelH, glm::vec3(0.08f, 0.10f, 0.14f));
+    drawRectHUD(hudShader, quadVAO, panelX + 4.0f, panelY + 4.0f, panelW - 8.0f, panelH - 8.0f, glm::vec3(0.13f, 0.16f, 0.22f));
+
+    const std::string title = "POWER ROUTING";
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        title,
+        panelX + (panelW - getTextWidth(title, 3.4f, 3.4f)) * 0.5f,
+        panelY + 24.0f,
+        3.4f,
+        glm::vec3(0.78f, 0.90f, 1.0f)
+    );
+
+    const std::array<glm::vec3, GameState::kPowerWireCount> wireColors{
+        glm::vec3(0.95f, 0.29f, 0.32f),
+        glm::vec3(0.22f, 0.78f, 0.38f),
+        glm::vec3(0.95f, 0.82f, 0.18f),
+        glm::vec3(0.20f, 0.68f, 1.0f),
+        glm::vec3(0.96f, 0.44f, 0.82f)
+    };
+    const std::array<std::string, GameState::kPowerWireCount> wireLabels{
+        "LINE 1", "LINE 2", "LINE 3", "LINE 4", "LINE 5"
+    };
+
+    const float labelX = panelX + 46.0f;
+    const float rowX = panelX + 126.0f;
+    const float rowW = panelW - 178.0f;
+    const float rowH = 46.0f;
+    const float rowStartY = panelY + 88.0f;
+    const float rowGap = 58.0f;
+
+    for (int i = 0; i < GameState::kPowerWireCount; ++i)
+    {
+        const float rowY = rowStartY + rowGap * static_cast<float>(i);
+        drawTextHUD(
+            hudShader,
+            quadVAO,
+            wireLabels[i],
+            labelX,
+            rowY + 12.0f,
+            1.7f,
+            i == powerWireSelected ? glm::vec3(0.88f, 0.95f, 1.0f) : glm::vec3(0.52f, 0.60f, 0.70f)
+        );
+        drawPowerWireRow(
+            hudShader,
+            quadVAO,
+            rowX,
+            rowY,
+            rowW,
+            rowH,
+            wireColors[i],
+            i == powerWireSelected,
+            powerWireCut[i],
+            i == powerWireSelected && !powerWireCut[i]
+        );
+    }
+
+    const std::string status =
+        powerWireResolving
+            ? (powerWireCutWasCorrect ? "POWER RESTORED" : "SEQUENCE ERROR")
+            : ("CUT " + std::to_string(powerWireCutOrder.size()) + " OF 5");
+    const glm::vec3 statusColor =
+        powerWireResolving
+            ? (powerWireCutWasCorrect ? glm::vec3(0.45f, 1.0f, 0.62f) : glm::vec3(1.0f, 0.42f, 0.42f))
+            : glm::vec3(0.70f, 0.78f, 0.86f);
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        status,
+        panelX + (panelW - getTextWidth(status, 2.3f, 2.3f)) * 0.5f,
+        panelY + 414.0f,
+        2.3f,
+        statusColor
+    );
+
+    const std::string hint = "ARROWS - SELECT  ENTER - CUT  ESC - CLOSE";
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        hint,
+        panelX + (panelW - getTextWidth(hint, 1.7f, 1.7f)) * 0.5f,
+        panelY + 444.0f,
+        1.7f,
+        glm::vec3(0.54f, 0.62f, 0.72f)
+    );
+
+    glBindVertexArray(0);
+}
+
 void drawLabStabilizerPanel(Shader& hudShader, unsigned int quadVAO)
 {
     if (!labStabilizerPanelOpen)
@@ -1288,7 +1673,9 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
 
     const bool playerLost = gameState.playerDied;
     const std::string title = playerLost ? "MISSION FAILED" : "MISSION COMPLETE";
-    const std::string subtitle = playerLost ? "OXYGEN DEPLETED" : "YOU ESCAPED";
+    const std::string subtitle = playerLost
+        ? (gameState.powerPuzzleFailed ? "POWER FAILURE" : "OXYGEN DEPLETED")
+        : "YOU ESCAPED";
     const std::string hint = "PRESS ESC TO EXIT";
 
     float titlePixel = 6.0f;
@@ -1872,7 +2259,7 @@ int main()
         }
 
         processInput(window);
-        if (gameState.playerDied)
+        if (gameState.playerDied && seenPlayerDeath)
         {
             const bool deathDialogFinished = currentSubtitle.empty() && subtitleQueue.empty();
             if (deathDialogFinished && !deathAnimationTriggered)
@@ -2287,6 +2674,7 @@ int main()
         drawInteractPrompt(hudShader, quadVAO);
         drawSubtitle(hudShader, quadVAO);
         drawControlCodePanel(hudShader, quadVAO);
+        drawPowerWirePanel(hudShader, quadVAO);
         drawLabStabilizerPanel(hudShader, quadVAO);
         drawEndingOverlay(hudShader, quadVAO);
         glEnable(GL_DEPTH_TEST);

@@ -487,11 +487,11 @@ void World::buildDefaultRoom()
         });
     }
 
-    interactables.push_back({
-        "power_console",
-        glm::vec3(8.0f, 0.0f, 0.0f),
-        1.9f,
-        [this]()
+      interactables.push_back({
+          "power_console",
+          glm::vec3(8.0f, 0.0f, 0.0f),
+          1.9f,
+          [this]()
         {
             if (!gameState)
                 return;
@@ -502,25 +502,15 @@ void World::buildDefaultRoom()
                 return;
             }
 
-            if (gameState->powerFixed)
-            {
-                std::cout << "AI: Main power already restored\n";
-                return;
-            }
+              if (gameState->powerFixed)
+              {
+                  std::cout << "AI: Main power already restored\n";
+                  return;
+              }
 
-            gameState->powerFixed = true;
-            gameState->storageUnlocked = true;
-            gameState->labUnlocked = true;
-
-            if (Door* storageDoor = findDoor("Storage Door"))
-                storageDoor->open = true;
-            if (Door* labDoor = findDoor("Lab Door"))
-                labDoor->open = true;
-
-            std::cout << "AI: Main power restored\n";
-            std::cout << "AI: Storage and Lab access online\n";
-        }
-    });
+              std::cout << "AI: Power reroute interface ready\n";
+          }
+      });
 
     interactables.push_back({
         "storage_note",
