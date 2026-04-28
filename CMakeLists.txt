@@ -52,17 +52,20 @@ add_executable(SpaceStationEscape
     "src/graphics/Texture.cpp"
     "src/graphics/AnimatedCharacter.cpp"
     "src/graphics/AnimatedObjectPlayer.cpp"
+    "src/audio/AudioEngine.cpp"
     "src/world/World.cpp"
     "src/world/TestRoomScene.cpp"
     "src/graphics/StaticModel.h"
     "src/graphics/Texture.h"
     "src/graphics/AnimatedCharacter.h"
     "src/graphics/AnimatedObjectPlayer.h"
+    "src/audio/AudioEngine.h"
     "src/world/TestRoomScene.h"
     "src/GameState.h")
 
 target_include_directories(SpaceStationEscape PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
 )
 
 target_compile_definitions(SpaceStationEscape PRIVATE

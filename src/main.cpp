@@ -13,6 +13,7 @@
 #include <vector>
 #include <memory>
 #include <algorithm>
+#include <random>
 
 #include "graphics/AnimatedCharacter.h"
 #include "graphics/AnimatedObjectPlayer.h"
@@ -20,12 +21,38 @@
 #include "graphics/StaticModel.h"
 #include "world/World.h"
 #include "world/TestRoomScene.h"
+#include "audio/AudioEngine.h"
 #include "GameState.h"
 
 static const unsigned int SCR_WIDTH = 1280;
 static const unsigned int SCR_HEIGHT = 720;
 static const std::string kControlDoorCode = "0427";
 static const std::array<int, 3> kLabStabilizerTarget{ 2, 7, 3 };
+static const std::string kMainPowerDownSubtitle = "....MAIN....POWER....DOWN.....";
+static const std::array<std::string, 2> kCodeTypingClipIds{ "code_typing_1", "code_typing_2" };
+static const std::string kArrowUpClipId = "arrow_up";
+static const std::string kArrowDownClipId = "arrow_down";
+static const std::string kConfirmationClipId = "confirmation";
+static const std::string kErrorClipId = "error";
+static const std::string kOpenClipId = "open";
+static const std::string kCloseClipId = "close";
+static const std::string kCutClipId = "cut";
+static const std::string kDoorOpenClipId = "door_open";
+static const std::string kStartClipId = "start";
+static const std::string kPickupClipId = "pickup";
+static const std::string kWinClipId = "win";
+static const std::string kLoseClipId = "lose";
+static const std::string kPowerShutdownClipId = "power_shutdown";
+static const std::string kBeepClipId = "beep";
+static const std::string kSpaceStationLoopId = "space_station_bg";
+static const std::string kHeavyBreathingLoopId = "heavy_breathing_loop";
+static const std::array<std::string, 5> kFootstepConcreteClipIds{
+    "footstep_concrete_000",
+    "footstep_concrete_001",
+    "footstep_concrete_002",
+    "footstep_concrete_003",
+    "footstep_concrete_004"
+};
 
 enum PowerWireId
 {
@@ -73,6 +100,7 @@ bool upPressedLastFrame = false;
 bool downPressedLastFrame = false;
 bool leftPressedLastFrame = false;
 bool rightPressedLastFrame = false;
+bool rPressedLastFrame = false;
 std::array<bool, 10> digitPressedLastFrame{ false, false, false, false, false, false, false, false, false, false };
 bool showCollisionDebug = false;
 bool fullscreenEnabled = false;
@@ -103,6 +131,9 @@ std::array<bool, GameState::kPowerWireCount> powerWireCut{ false, false, false, 
 std::vector<int> powerWireCutOrder;
 int powerWireSelected = 0;
 float powerWireResolveTimer = 0.0f;
+float footstepTimer = 0.0f;
+float powerWarningBeepTimer = 0.0f;
+bool powerWarningBeepRapid = false;
 
 enum class PlayerAnimationState
 {
@@ -139,6 +170,7 @@ AnimatedCharacter* getCharacterForState(
 
 World world;
 GameState gameState;
+AudioEngine audio;
 
 struct SubtitleLine
 {
@@ -158,6 +190,171 @@ bool seenHasCode = false;
 bool seenControlUnlocked = false;
 bool seenGameFinished = false;
 bool seenPlayerDeath = false;
+bool endingSoundPlayed = false;
+bool heavyBreathingPlaying = false;
+float heavyBreathingVolume = 0.55f;
+bool powerWarningBeepActive = false;
+
+void playRandomCodeTypingSound()
+{
+    constexpr float kCodeTypingVolume = 0.70f;
+    static std::mt19937 rng(std::random_device{}());
+    static std::uniform_int_distribution<int> soundIndex(0, 1);
+    static const std::array<std::string, 2> typingSounds{
+        kCodeTypingClipIds[0],
+        kCodeTypingClipIds[1]
+    };
+
+    audio.playClip(typingSounds[soundIndex(rng)], kCodeTypingVolume);
+}
+
+void playCodeDeleteSound()
+{
+    constexpr float kCodeDeleteVolume = 1.0f;
+    static const std::string deleteSound = std::string(PROJECT_ROOT) + "/assets/audio/delete.wav";
+    audio.playOneShot(deleteSound, kCodeDeleteVolume);
+}
+
+void playTypingSound(int typingIndex)
+{
+    constexpr float kTypingVolume = 0.70f;
+    if (typingIndex < 0 || typingIndex >= static_cast<int>(kCodeTypingClipIds.size()))
+        return;
+
+    audio.playClip(kCodeTypingClipIds[typingIndex], kTypingVolume);
+}
+
+void playArrowUpSound()
+{
+    constexpr float kArrowVolume = 0.85f;
+    audio.playClip(kArrowUpClipId, kArrowVolume);
+}
+
+void playArrowDownSound()
+{
+    constexpr float kArrowVolume = 0.85f;
+    audio.playClip(kArrowDownClipId, kArrowVolume);
+}
+
+void playConfirmationSound()
+{
+    constexpr float kConfirmationVolume = 0.85f;
+    audio.playClip(kConfirmationClipId, kConfirmationVolume);
+}
+
+void playErrorSound()
+{
+    constexpr float kErrorVolume = 0.85f;
+    audio.playClip(kErrorClipId, kErrorVolume);
+}
+
+void playOpenSound()
+{
+    constexpr float kOpenVolume = 0.4f;
+    audio.playClip(kOpenClipId, kOpenVolume);
+}
+
+void playCloseSound()
+{
+    constexpr float kCloseVolume = 0.4f;
+    audio.playClip(kCloseClipId, kCloseVolume);
+}
+
+void playCutSound()
+{
+    constexpr float kCutVolume = 0.25f;
+    audio.playClip(kCutClipId, kCutVolume);
+}
+
+void playDoorOpenSound()
+{
+    constexpr float kDoorOpenVolume = 0.6f;
+    audio.playClip(kDoorOpenClipId, kDoorOpenVolume);
+}
+
+void playStartSound()
+{
+    constexpr float kStartVolume = 0.7f;
+    audio.playClip(kStartClipId, kStartVolume);
+}
+
+void playPickupSound()
+{
+    constexpr float kPickupVolume = 0.7f;
+    audio.playClip(kPickupClipId, kPickupVolume);
+}
+
+void playWinSound()
+{
+    constexpr float kWinVolume = 0.7f;
+    audio.playClip(kWinClipId, kWinVolume);
+}
+
+void playLoseSound()
+{
+    constexpr float kLoseVolume = 0.55f;
+    audio.playClip(kLoseClipId, kLoseVolume);
+}
+
+void playPowerShutdownSound()
+{
+    constexpr float kPowerShutdownVolume = 0.75f;
+    audio.playClip(kPowerShutdownClipId, kPowerShutdownVolume);
+}
+
+void playBeepSound()
+{
+    constexpr float kBeepVolume = 0.45f;
+    audio.playClip(kBeepClipId, kBeepVolume);
+}
+
+void startHeavyBreathingLoop()
+{
+    if (heavyBreathingPlaying || gameState.oxygenFixed)
+        return;
+
+    if (audio.playLoop(kHeavyBreathingLoopId, std::string(PROJECT_ROOT) + "/assets/audio/heavy_breathing.wav", heavyBreathingVolume))
+        heavyBreathingPlaying = true;
+}
+
+void stopHeavyBreathingLoop()
+{
+    if (!heavyBreathingPlaying)
+    {
+        heavyBreathingVolume = 0.55f;
+        return;
+    }
+
+    audio.stopLoop(kHeavyBreathingLoopId);
+    heavyBreathingPlaying = false;
+    heavyBreathingVolume = 0.55f;
+}
+
+void playFootstepSound()
+{
+    constexpr float kFootstepVolume = 0.35f;
+    static size_t selectedIndex = 0;
+
+    audio.playClip(kFootstepConcreteClipIds[selectedIndex], kFootstepVolume);
+    selectedIndex = (selectedIndex + 1) % kFootstepConcreteClipIds.size();
+}
+
+void updateFootstepSounds()
+{
+    if (!playerIsMoving || playerIsDancing || gameState.playerDied || gameState.gameFinished)
+    {
+        footstepTimer = 0.0f;
+        return;
+    }
+
+    const float footstepInterval = playerIsRunning ? 0.3f : 0.54f;
+    footstepTimer -= deltaTime;
+    if (footstepTimer <= 0.0f)
+    {
+        playFootstepSound();
+        footstepTimer = footstepInterval;
+    }
+}
 
 void unlockControlRoomFromCode()
 {
@@ -174,8 +371,63 @@ void unlockControlRoomFromCode()
             break;
         }
     }
+    playDoorOpenSound();
 
     std::cout << "Control room unlocked\n";
+}
+
+void startPowerWarningBeeps()
+{
+    powerWarningBeepActive = true;
+    powerWarningBeepRapid = false;
+    powerWarningBeepTimer = 1.6f;
+}
+
+void startPowerFailureBeeps()
+{
+    powerWarningBeepActive = true;
+    powerWarningBeepRapid = true;
+    powerWarningBeepTimer = 0.0f;
+}
+
+void stopPowerWarningBeeps()
+{
+    powerWarningBeepActive = false;
+    powerWarningBeepRapid = false;
+    powerWarningBeepTimer = 0.0f;
+}
+
+void updatePowerWarningBeeps()
+{
+    if (!powerWarningBeepActive)
+        return;
+
+    if (powerWarningBeepRapid)
+    {
+        if (!gameState.powerPuzzleFailed || deathAnimationTriggered)
+        {
+            stopPowerWarningBeeps();
+            return;
+        }
+
+        powerWarningBeepTimer -= deltaTime;
+        if (powerWarningBeepTimer <= 0.0f)
+        {
+            playBeepSound();
+            powerWarningBeepTimer = 0.5f;
+        }
+        return;
+    }
+
+    if (gameState.powerFixed || gameState.gameFinished || gameState.playerDied)
+        return;
+
+    powerWarningBeepTimer -= deltaTime;
+    if (powerWarningBeepTimer <= 0.0f)
+    {
+        playBeepSound();
+        powerWarningBeepTimer = 4.0f;
+    }
 }
 
 void completeLabStabilization()
@@ -242,6 +494,7 @@ void completePowerRestore()
         if (door.name == "Storage Door" || door.name == "Lab Door")
             door.open = true;
     }
+    playDoorOpenSound();
 
     std::cout << "AI: Main power restored\n";
     std::cout << "AI: Storage and Lab access online\n";
@@ -252,6 +505,7 @@ void failPowerPuzzle()
     gameState.powerPuzzleFailed = true;
     gameState.playerDied = true;
     gameState.gameFinished = true;
+    startPowerFailureBeeps();
     closePowerWirePanel();
     std::cout << "AI: Incorrect wire cut detected\n";
 }
@@ -434,11 +688,13 @@ void processInput(GLFWwindow* window)
             controlCodePanelOpen = false;
             controlCodeRejected = false;
             controlCodeInput.clear();
+            playCloseSound();
         }
         else if (labStabilizerPanelOpen)
         {
             labStabilizerPanelOpen = false;
             labStabilizerRejected = false;
+            playCloseSound();
         }
         else if (powerWirePanelOpen && !powerWireResolving)
         {
@@ -473,6 +729,7 @@ void processInput(GLFWwindow* window)
             {
                 controlCodeInput.push_back(static_cast<char>('0' + digit));
                 controlCodeRejected = false;
+                playRandomCodeTypingSound();
             }
             digitPressedLastFrame[digit] = digitPressedNow;
         }
@@ -482,6 +739,7 @@ void processInput(GLFWwindow* window)
         {
             controlCodeInput.pop_back();
             controlCodeRejected = false;
+            playCodeDeleteSound();
         }
         backspacePressedLastFrame = backspacePressedNow;
 
@@ -491,10 +749,12 @@ void processInput(GLFWwindow* window)
         {
             if (controlCodeInput == kControlDoorCode)
             {
+                playConfirmationSound();
                 unlockControlRoomFromCode();
             }
             else
             {
+                playErrorSound();
                 controlCodeRejected = true;
                 controlCodeInput.clear();
                 std::cout << "Wrong control room code\n";
@@ -516,18 +776,26 @@ void processInput(GLFWwindow* window)
         const bool rightPressedNow = glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS;
 
         if (upPressedNow && !upPressedLastFrame)
+        {
             labStabilizerSelected = (labStabilizerSelected + 2) % 3;
+            playArrowUpSound();
+        }
         if (downPressedNow && !downPressedLastFrame)
+        {
             labStabilizerSelected = (labStabilizerSelected + 1) % 3;
+            playArrowDownSound();
+        }
         if (leftPressedNow && !leftPressedLastFrame)
         {
             labStabilizerValues[labStabilizerSelected] = std::max(0, labStabilizerValues[labStabilizerSelected] - 1);
             labStabilizerRejected = false;
+            playTypingSound(1);
         }
         if (rightPressedNow && !rightPressedLastFrame)
         {
             labStabilizerValues[labStabilizerSelected] = std::min(9, labStabilizerValues[labStabilizerSelected] + 1);
             labStabilizerRejected = false;
+            playTypingSound(0);
         }
 
         upPressedLastFrame = upPressedNow;
@@ -540,9 +808,15 @@ void processInput(GLFWwindow* window)
         if (enterPressedNow && !enterPressedLastFrame)
         {
             if (labStabilizerValues == kLabStabilizerTarget)
+            {
+                playConfirmationSound();
                 completeLabStabilization();
+            }
             else
+            {
+                playErrorSound();
                 labStabilizerRejected = true;
+            }
         }
         enterPressedLastFrame = enterPressedNow;
 
@@ -560,9 +834,15 @@ void processInput(GLFWwindow* window)
         if (!powerWireResolving)
         {
             if (upPressedNow && !upPressedLastFrame)
+            {
                 powerWireSelected = (powerWireSelected + GameState::kPowerWireCount - 1) % GameState::kPowerWireCount;
+                playArrowUpSound();
+            }
             if (downPressedNow && !downPressedLastFrame)
+            {
                 powerWireSelected = (powerWireSelected + 1) % GameState::kPowerWireCount;
+                playArrowDownSound();
+            }
         }
 
         upPressedLastFrame = upPressedNow;
@@ -578,6 +858,7 @@ void processInput(GLFWwindow* window)
             {
                 powerWireCut[powerWireSelected] = true;
                 powerWireCutOrder.push_back(powerWireSelected);
+                playCutSound();
 
                 if (!isValidPowerWireOrderPrefix(powerWireCutOrder))
                 {
@@ -587,6 +868,7 @@ void processInput(GLFWwindow* window)
                 }
                 else if (powerWireCutOrder.size() == GameState::kPowerWireCount)
                 {
+                    playConfirmationSound();
                     powerWireCutWasCorrect = true;
                     powerWireResolving = true;
                     powerWireResolveTimer = 0.75f;
@@ -680,6 +962,12 @@ void updateSubtitles()
         currentSubtitle = subtitleQueue.front().text;
         subtitleTimer = subtitleQueue.front().duration;
         subtitleQueue.erase(subtitleQueue.begin());
+
+        if (currentSubtitle == kMainPowerDownSubtitle)
+        {
+            playPowerShutdownSound();
+            startPowerWarningBeeps();
+        }
     }
 
     if (!currentSubtitle.empty())
@@ -710,16 +998,18 @@ void updateStoryEvents()
     if (gameState.oxygenFixed && !seenOxygenFixed)
     {
         seenOxygenFixed = true;
+        stopHeavyBreathingLoop();
         interruptSubtitles();
         queueSubtitle("OXYGEN FLOW STABILIZED", 2.8f);
         queueSubtitle("RUNNING DAMAGE DIAGNOSTICS...", 2.8f);
-        queueSubtitle("....MAIN....POWER....DOWN.....", 3.2f);
+        queueSubtitle(kMainPowerDownSubtitle, 3.2f);
         queueSubtitle("......RESTORE....POWER....", 3.2f);
     }
 
     if (gameState.powerFixed && !seenPowerFixed)
     {
         seenPowerFixed = true;
+        stopPowerWarningBeeps();
         interruptSubtitles();
         queueSubtitle("MAIN POWER RESTORED", 2.8f);
         queueSubtitle("SYSTEMS REBOOTING...", 2.8f);
@@ -836,6 +1126,7 @@ void handleInteraction(GLFWwindow* window)
             controlCodePanelOpen = true;
             controlCodeRejected = false;
             controlCodeInput.clear();
+            playOpenSound();
             ePressedLastFrame = ePressedNow;
             return;
         }
@@ -846,6 +1137,7 @@ void handleInteraction(GLFWwindow* window)
         {
             labStabilizerPanelOpen = true;
             labStabilizerRejected = false;
+            playOpenSound();
             ePressedLastFrame = ePressedNow;
             return;
         }
@@ -860,7 +1152,10 @@ void handleInteraction(GLFWwindow* window)
             return;
         }
 
+        const bool hadFoundNote = gameState.foundNote;
         world.tryInteract(playerPos);
+        if (!hadFoundNote && gameState.foundNote)
+            playPickupSound();
     }
 
     ePressedLastFrame = ePressedNow;
@@ -1676,18 +1971,22 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
     const std::string subtitle = playerLost
         ? (gameState.powerPuzzleFailed ? "POWER FAILURE" : "OXYGEN DEPLETED")
         : "YOU ESCAPED";
-    const std::string hint = "PRESS ESC TO EXIT";
+    const std::string hint = "PRESS R TO RESTART  ESC TO EXIT";
 
     float titlePixel = 6.0f;
     float subtitlePixel = 4.0f;
     float hintPixel = 2.6f;
+    const float centerY = screenHeight * 0.5f;
+    const float titleY = centerY - 95.0f;
+    const float subtitleY = centerY - 15.0f;
+    const float hintY = centerY + 70.0f;
 
     drawTextHUD(
         hudShader,
         quadVAO,
         title,
         (screenWidth - getTextWidth(title, titlePixel, titlePixel)) * 0.5f,
-        240.0f,
+        titleY,
         titlePixel,
         playerLost ? glm::vec3(1.0f, 0.78f, 0.78f) : glm::vec3(0.85f, 0.97f, 1.0f)
     );
@@ -1697,7 +1996,7 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
         quadVAO,
         subtitle,
         (screenWidth - getTextWidth(subtitle, subtitlePixel, subtitlePixel)) * 0.5f,
-        320.0f,
+        subtitleY,
         subtitlePixel,
         playerLost ? glm::vec3(1.0f, 0.32f, 0.32f) : glm::vec3(0.35f, 1.0f, 0.65f)
     );
@@ -1707,12 +2006,55 @@ void drawEndingOverlay(Shader& hudShader, unsigned int quadVAO)
         quadVAO,
         hint,
         (screenWidth - getTextWidth(hint, hintPixel, hintPixel)) * 0.5f,
-        392.0f,
+        hintY,
         hintPixel,
         glm::vec3(0.80f, 0.86f, 0.92f)
     );
 
     glBindVertexArray(0);
+}
+
+bool isEndingOverlayVisible()
+{
+    if (!gameState.gameFinished && !gameState.playerDied)
+        return false;
+
+    if (gameState.playerDied &&
+        (!currentSubtitle.empty() || !subtitleQueue.empty() || !deathAnimationTriggered || !deathAnimationFinished))
+        return false;
+
+    return true;
+}
+
+void updateHeavyBreathingLoop()
+{
+    if (!gameStarted || gameState.oxygenFixed)
+    {
+        stopHeavyBreathingLoop();
+        return;
+    }
+
+    if (!heavyBreathingPlaying)
+        startHeavyBreathingLoop();
+
+    if (!heavyBreathingPlaying)
+        return;
+
+    if (gameState.playerDied && gameState.oxygenPuzzleFailed)
+    {
+        if (deathAnimationTriggered)
+        {
+            stopHeavyBreathingLoop();
+            return;
+        }
+
+        if (isEndingOverlayVisible())
+            heavyBreathingVolume = 1.0f;
+        else
+            heavyBreathingVolume = std::min(1.0f, heavyBreathingVolume + deltaTime * 0.25f);
+
+        audio.setLoopVolume(kHeavyBreathingLoopId, heavyBreathingVolume);
+    }
 }
 
 void drawStartMenu(Shader& hudShader, unsigned int quadVAO, float timeSeconds)
@@ -1812,6 +2154,34 @@ int main()
         glfwDestroyWindow(window);
         glfwTerminate();
         return -1;
+    }
+
+    if (audio.init())
+    {
+        audio.playLoop(kSpaceStationLoopId, std::string(PROJECT_ROOT) + "/assets/audio/space_station.wav", 0.25f);
+        audio.preloadClip(kCodeTypingClipIds[0], std::string(PROJECT_ROOT) + "/assets/audio/typing1.wav", 8);
+        audio.preloadClip(kCodeTypingClipIds[1], std::string(PROJECT_ROOT) + "/assets/audio/typing2.wav", 8);
+        audio.preloadClip(kArrowUpClipId, std::string(PROJECT_ROOT) + "/assets/audio/arrow_up.wav", 4);
+        audio.preloadClip(kArrowDownClipId, std::string(PROJECT_ROOT) + "/assets/audio/arrow_down.wav", 4);
+        audio.preloadClip(kConfirmationClipId, std::string(PROJECT_ROOT) + "/assets/audio/confirmation.wav", 4);
+        audio.preloadClip(kErrorClipId, std::string(PROJECT_ROOT) + "/assets/audio/error.wav", 4);
+        audio.preloadClip(kOpenClipId, std::string(PROJECT_ROOT) + "/assets/audio/open.wav", 4);
+        audio.preloadClip(kCloseClipId, std::string(PROJECT_ROOT) + "/assets/audio/close.wav", 4);
+        audio.preloadClip(kCutClipId, std::string(PROJECT_ROOT) + "/assets/audio/cut.wav", 4);
+        audio.preloadClip(kDoorOpenClipId, std::string(PROJECT_ROOT) + "/assets/audio/door_open.wav", 2);
+        audio.preloadClip(kStartClipId, std::string(PROJECT_ROOT) + "/assets/audio/start.wav", 2);
+        audio.preloadClip(kPickupClipId, std::string(PROJECT_ROOT) + "/assets/audio/pickup.wav", 2);
+        audio.preloadClip(kWinClipId, std::string(PROJECT_ROOT) + "/assets/audio/win.wav", 1);
+        audio.preloadClip(kLoseClipId, std::string(PROJECT_ROOT) + "/assets/audio/lose.wav", 1);
+        audio.preloadClip(kPowerShutdownClipId, std::string(PROJECT_ROOT) + "/assets/audio/power_shutdown.wav", 1);
+        audio.preloadClip(kBeepClipId, std::string(PROJECT_ROOT) + "/assets/audio/beep.wav", 6);
+        for (size_t i = 0; i < kFootstepConcreteClipIds.size(); ++i)
+        {
+            const std::string path =
+                std::string(PROJECT_ROOT) + "/assets/audio/footstep_concrete_00" + std::to_string(i) + ".wav";
+            if (!audio.preloadClip(kFootstepConcreteClipIds[i], path, 4))
+                std::cerr << "Failed to preload footstep clip: " << path << "\n";
+        }
     }
 
     glEnable(GL_DEPTH_TEST);
@@ -2216,9 +2586,91 @@ int main()
     bool testRoomControlUnlockedState = gameState.controlUnlocked;
     PlayerAnimationState currentAnimationState = PlayerAnimationState::Idle;
     std::array<bool, GameState::kOxygenValveCount> previousOxygenValveStates = gameState.oxygenValvesOpened;
+    auto restartGame = [&]()
+    {
+        gameState = GameState{};
+        world.buildDefaultRoom();
+        world.setGameState(&gameState);
+
+        if (kTemplateRoomTestMode)
+        {
+            configureTestRoomWorld(world, testRoomScene, gameState.powerFixed, gameState.controlUnlocked);
+            playerPos = testRoomScene.playerStart;
+        }
+        else
+        {
+            playerPos = glm::vec3(0.0f, 0.0f, 0.0f);
+        }
+
+        playerYaw = 90.0f;
+        cameraYaw = -90.0f;
+        cameraPitch = -20.0f;
+        currentCameraDistance = cameraDistance;
+        firstMouse = true;
+
+        controlCodePanelOpen = false;
+        controlCodeRejected = false;
+        controlCodeInput.clear();
+        labStabilizerPanelOpen = false;
+        labStabilizerRejected = false;
+        labStabilizerValues = { 0, 0, 0 };
+        labStabilizerSelected = 0;
+        closePowerWirePanel();
+
+        playerIsMoving = false;
+        playerIsRunning = false;
+        playerDanceTriggered = false;
+        playerIsDancing = false;
+        deathAnimationTriggered = false;
+        deathAnimationFinished = false;
+        footstepTimer = 0.0f;
+        stopPowerWarningBeeps();
+
+        subtitleQueue.clear();
+        currentSubtitle.clear();
+        subtitleTimer = 0.0f;
+        introQueued = false;
+        seenOxygenFixed = false;
+        seenPowerFixed = false;
+        seenFoundNote = false;
+        seenHasCode = false;
+        seenControlUnlocked = false;
+        seenGameFinished = false;
+        seenPlayerDeath = false;
+        endingSoundPlayed = false;
+        stopHeavyBreathingLoop();
+        heavyBreathingPlaying = false;
+
+        ePressedLastFrame = false;
+        onePressedLastFrame = false;
+        enterPressedLastFrame = false;
+        spacePressedLastFrame = false;
+        backspacePressedLastFrame = false;
+        escapePressedLastFrame = false;
+        upPressedLastFrame = false;
+        downPressedLastFrame = false;
+        leftPressedLastFrame = false;
+        rightPressedLastFrame = false;
+        rPressedLastFrame = false;
+        digitPressedLastFrame.fill(false);
+
+        oxygenAnimatedPipeStarted.fill(false);
+        previousOxygenValveStates = gameState.oxygenValvesOpened;
+        winPrinted = false;
+        testRoomPowerFixedState = gameState.powerFixed;
+        testRoomControlUnlockedState = gameState.controlUnlocked;
+        currentAnimationState = PlayerAnimationState::Idle;
+        idleCharacter.update(0.0f, true);
+
+        gameStarted = true;
+        startHeavyBreathingLoop();
+        std::cout << "Game restarted\n";
+    };
 
     while (!glfwWindowShouldClose(window))
     {
+        audio.update();
+
         float currentFrame = (float)glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
@@ -2237,6 +2689,8 @@ int main()
             if ((enterPressedNow && !enterPressedLastFrame) || (spacePressedNow && !spacePressedLastFrame))
             {
                 gameStarted = true;
+                playStartSound();
+                startHeavyBreathingLoop();
                 enterPressedLastFrame = enterPressedNow;
                 spacePressedLastFrame = spacePressedNow;
                 subtitleQueue.clear();
@@ -2262,6 +2716,16 @@ int main()
         }
 
         processInput(window);
+        updateFootstepSounds();
+        const bool rPressedNow = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
+        if (isEndingOverlayVisible() && rPressedNow && !rPressedLastFrame)
+        {
+            restartGame();
+            glfwPollEvents();
+            continue;
+        }
+        rPressedLastFrame = rPressedNow;
+
         if (gameState.playerDied && seenPlayerDeath)
         {
             const bool deathDialogFinished = currentSubtitle.empty() && subtitleQueue.empty();
@@ -2366,6 +2830,8 @@ int main()
         }
         updateStoryEvents();
         updateSubtitles();
+        updateHeavyBreathingLoop();
+        updatePowerWarningBeeps();
 
         int newRoom = world.getCurrentRoomIndex(playerPos);
 
@@ -2683,6 +3149,14 @@ int main()
         drawPowerWirePanel(hudShader, quadVAO);
         drawLabStabilizerPanel(hudShader, quadVAO);
         drawEndingOverlay(hudShader, quadVAO);
+        if (!endingSoundPlayed && isEndingOverlayVisible())
+        {
+            if (gameState.playerDied)
+                playLoseSound();
+            else
+                playWinSound();
+            endingSoundPlayed = true;
+        }
         glEnable(GL_DEPTH_TEST);
 
         glfwSwapBuffers(window);
@@ -2694,6 +3168,8 @@ int main()
 
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteBuffers(1, &quadVBO);
+
+    audio.shutdown();
 
     glfwDestroyWindow(window);
     glfwTerminate();
