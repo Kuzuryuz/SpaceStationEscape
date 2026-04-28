@@ -20,7 +20,7 @@ void main()
     float diffuse = max(dot(n, normalize(-lightDir)), 0.0);
     vec3 lighting = useSolidColor == 1
         ? vec3(0.72, 0.70, 0.82) + vec3(0.45) * diffuse
-        : vec3(max(diffuse, 0.2));
-    vec3 color = albedo * lighting;
+        : vec3(0.46) + vec3(0.64) * diffuse;
+    vec3 color = clamp(albedo * lighting, 0.0, 1.0);
     FragColor = vec4(color, 1.0);
 }
