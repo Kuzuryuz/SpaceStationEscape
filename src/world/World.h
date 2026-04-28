@@ -61,7 +61,7 @@ public:
     std::vector<Room> rooms;
     std::vector<Interactable> interactables;
 
-    void buildDefaultRoom();
+    void resetInteractables();
 
     bool collidesWithWorld(const glm::vec3& testPos, float playerRadius) const;
     bool collidesWithCamera(const glm::vec3& cameraPos, float cameraRadius) const;

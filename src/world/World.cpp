@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <iostream>
 #include <limits>
 
 namespace
@@ -137,13 +136,8 @@ int World::findInteractableIndexByName(const std::string& name) const
     return -1;
 }
 
-void World::buildDefaultRoom()
+void World::resetInteractables()
 {
-    colliders.clear();
-    circleColliders.clear();
-    cylinderColliders.clear();
-    horizontalCylinderColliders.clear();
-    rooms.clear();
     interactables.clear();
 
     const std::array<glm::vec3, GameState::kOxygenValveCount> oxygenValvePositions = {
@@ -166,19 +160,16 @@ void World::buildDefaultRoom()
 
                 if (gameState->playerDied)
                 {
-                    std::cout << "AI: No response. Crew vitals lost\n";
                     return;
                 }
 
                 if (gameState->oxygenFixed)
                 {
-                    std::cout << "AI: Oxygen already stable\n";
                     return;
                 }
 
                 if (gameState->oxygenValvesOpened[valveNumber])
                 {
-                    std::cout << "AI: Valve already aligned\n";
                     return;
                 }
 
@@ -188,19 +179,15 @@ void World::buildDefaultRoom()
                     gameState->oxygenPuzzleFailed = true;
                     gameState->playerDied = true;
                     gameState->gameFinished = true;
-                    std::cout << "AI: Wrong valve order. Oxygen purge failed\n";
-                    std::cout << "AI: Chamber vented. Crew vitals lost\n";
                     return;
                 }
 
                 gameState->oxygenValvesOpened[valveNumber] = true;
                 ++gameState->oxygenValveProgress;
-                std::cout << "AI: Valve " << (valveNumber + 1) << " aligned\n";
 
                 if (gameState->oxygenValveProgress >= GameState::kOxygenValveCount)
                 {
                     gameState->oxygenFixed = true;
-                    std::cout << "AI: Oxygen flow stabilized\n";
                 }
             }
         });
@@ -217,17 +204,14 @@ void World::buildDefaultRoom()
 
             if (gameState->playerDied)
             {
-                std::cout << "AI: Terminal offline. Crew vitals lost\n";
                 return;
             }
 
             if (!gameState->oxygenFixed)
             {
-                std::cout << "AI: Oxygen malfunction. Reactivate by rotating the pipes in order\n";
                 return;
             }
 
-            std::cout << "AI: Oxygen normal. Monitoring nominal\n";
         }
     });
 
@@ -242,17 +226,14 @@ void World::buildDefaultRoom()
 
             if (!gameState->oxygenFixed)
             {
-                std::cout << "AI: Power console locked until oxygen is stable\n";
                 return;
             }
 
             if (gameState->powerFixed)
             {
-                std::cout << "AI: Main power already restored\n";
                 return;
             }
 
-            std::cout << "AI: Power reroute interface ready\n";
         }
     });
 
@@ -267,18 +248,15 @@ void World::buildDefaultRoom()
 
             if (!gameState->storageUnlocked)
             {
-                std::cout << "AI: Storage access offline\n";
                 return;
             }
 
             if (gameState->foundNote)
             {
-                std::cout << "AI: Clue already recovered\n";
                 return;
             }
 
             gameState->foundNote = true;
-            std::cout << "AI: Encrypted clue recovered\n";
         }
     });
 
@@ -293,23 +271,19 @@ void World::buildDefaultRoom()
 
             if (!gameState->labUnlocked)
             {
-                std::cout << "AI: Lab access offline\n";
                 return;
             }
 
             if (!gameState->foundNote)
             {
-                std::cout << "AI: No encrypted clue available for decoding\n";
                 return;
             }
 
             if (gameState->hasCode)
             {
-                std::cout << "AI: Control code already recovered\n";
                 return;
             }
 
-            std::cout << "AI: Sample stabilization required\n";
         }
     });
 
@@ -324,17 +298,14 @@ void World::buildDefaultRoom()
 
             if (!gameState->hasCode)
             {
-                std::cout << "AI: Control room locked. Security code required\n";
                 return;
             }
 
             if (gameState->controlUnlocked)
             {
-                std::cout << "AI: Control room already unlocked\n";
                 return;
             }
 
-            std::cout << "AI: Awaiting control room code entry\n";
         }
     });
 
@@ -349,18 +320,15 @@ void World::buildDefaultRoom()
 
             if (!gameState->controlUnlocked)
             {
-                std::cout << "AI: Terminal inaccessible until Control Room is unlocked\n";
                 return;
             }
 
             if (gameState->gameFinished)
             {
-                std::cout << "AI: Escape route already authorized\n";
                 return;
             }
 
             gameState->gameFinished = true;
-            std::cout << "AI: Escape route authorized\n";
         }
     });
 

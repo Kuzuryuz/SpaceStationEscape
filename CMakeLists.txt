@@ -54,13 +54,13 @@ add_executable(SpaceStationEscape
     "src/graphics/AnimatedObjectPlayer.cpp"
     "src/audio/AudioEngine.cpp"
     "src/world/World.cpp"
-    "src/world/TestRoomScene.cpp"
+    "src/world/SpaceStationScene.cpp"
     "src/graphics/StaticModel.h"
     "src/graphics/Texture.h"
     "src/graphics/AnimatedCharacter.h"
     "src/graphics/AnimatedObjectPlayer.h"
     "src/audio/AudioEngine.h"
-    "src/world/TestRoomScene.h"
+    "src/world/SpaceStationScene.h"
     "src/GameState.h")
 
 target_include_directories(SpaceStationEscape PRIVATE

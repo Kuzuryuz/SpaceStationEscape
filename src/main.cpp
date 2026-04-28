@@ -20,7 +20,7 @@
 #include "graphics/Shader.h"
 #include "graphics/StaticModel.h"
 #include "world/World.h"
-#include "world/TestRoomScene.h"
+#include "world/SpaceStationScene.h"
 #include "audio/AudioEngine.h"
 #include "GameState.h"
 
@@ -92,8 +92,6 @@ float lastMouseX = SCR_WIDTH * 0.5f;
 float lastMouseY = SCR_HEIGHT * 0.5f;
 
 bool ePressedLastFrame = false;
-bool onePressedLastFrame = false;
-bool f3PressedLastFrame = false;
 bool f11PressedLastFrame = false;
 bool enterPressedLastFrame = false;
 bool spacePressedLastFrame = false;
@@ -105,7 +103,6 @@ bool leftPressedLastFrame = false;
 bool rightPressedLastFrame = false;
 bool rPressedLastFrame = false;
 std::array<bool, 10> digitPressedLastFrame{ false, false, false, false, false, false, false, false, false, false };
-bool showCollisionDebug = false;
 bool fullscreenEnabled = false;
 int windowedX = 100;
 int windowedY = 100;
@@ -116,8 +113,6 @@ bool showInteractPrompt = false;
 int nearestInteractableIndex = -1;
 bool playerIsMoving = false;
 bool playerIsRunning = false;
-bool playerDanceTriggered = false;
-bool playerIsDancing = false;
 bool deathAnimationTriggered = false;
 bool deathAnimationFinished = false;
 bool controlCodePanelOpen = false;
@@ -144,7 +139,6 @@ enum class PlayerAnimationState
     Idle,
     Walk,
     Run,
-    Dance,
     Die
 };
 
@@ -153,7 +147,6 @@ AnimatedCharacter* getCharacterForState(
     AnimatedCharacter& idleCharacter,
     AnimatedCharacter& walkCharacter,
     AnimatedCharacter& runCharacter,
-    AnimatedCharacter& danceCharacter,
     AnimatedCharacter& deathCharacter)
 {
     switch (state)
@@ -162,8 +155,6 @@ AnimatedCharacter* getCharacterForState(
         return walkCharacter.isLoaded() ? &walkCharacter : nullptr;
     case PlayerAnimationState::Run:
         return runCharacter.isLoaded() ? &runCharacter : nullptr;
-    case PlayerAnimationState::Dance:
-        return danceCharacter.isLoaded() ? &danceCharacter : nullptr;
     case PlayerAnimationState::Die:
         return deathCharacter.isLoaded() ? &deathCharacter : nullptr;
     case PlayerAnimationState::Idle:
@@ -365,7 +356,7 @@ void playFootstepSound()
 
 void updateFootstepSounds()
 {
-    if (!playerIsMoving || playerIsDancing || gameState.playerDied || gameState.gameFinished)
+    if (!playerIsMoving || gameState.playerDied || gameState.gameFinished)
     {
         footstepTimer = 0.0f;
         return;
@@ -388,7 +379,6 @@ void unlockControlRoomFromCode()
     controlCodeInput.clear();
     playDoorOpenSound();
 
-    std::cout << "Control room unlocked\n";
 }
 
 void startPowerWarningBeeps()
@@ -450,7 +440,6 @@ void completeLabStabilization()
     gameState.hasCode = true;
     labStabilizerPanelOpen = false;
     labStabilizerRejected = false;
-    std::cout << "AI: Trace markings decoded\n";
 }
 
 void openPowerWirePanel()
@@ -506,8 +495,6 @@ void completePowerRestore()
     closePowerWirePanel();
     playDoorOpenSound();
 
-    std::cout << "AI: Main power restored\n";
-    std::cout << "AI: Storage and Lab access online\n";
 }
 
 void failPowerPuzzle()
@@ -517,7 +504,6 @@ void failPowerPuzzle()
     gameState.gameFinished = true;
     startPowerFailureBeeps();
     closePowerWirePanel();
-    std::cout << "AI: Incorrect wire cut detected\n";
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
@@ -722,18 +708,6 @@ void processInput(GLFWwindow* window)
     }
     escapePressedLastFrame = escapePressedNow;
 
-    const bool f3PressedNow = glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS;
-    if (f3PressedNow && !f3PressedLastFrame)
-    {
-        showCollisionDebug = !showCollisionDebug;
-        std::cout << "Collision debug " << (showCollisionDebug ? "enabled" : "disabled") << "\n";
-    }
-    f3PressedLastFrame = f3PressedNow;
-
-    const bool onePressedNow = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
-    playerDanceTriggered = onePressedNow && !onePressedLastFrame;
-    onePressedLastFrame = onePressedNow;
-
     if (controlCodePanelOpen)
     {
         for (int digit = 0; digit < 10; ++digit)
@@ -772,14 +746,12 @@ void processInput(GLFWwindow* window)
                 playErrorSound();
                 controlCodeRejected = true;
                 controlCodeInput.clear();
-                std::cout << "Wrong control room code\n";
             }
         }
         enterPressedLastFrame = enterPressedNow;
 
         playerIsMoving = false;
         playerIsRunning = false;
-        playerDanceTriggered = false;
         return;
     }
 
@@ -787,7 +759,6 @@ void processInput(GLFWwindow* window)
     {
         playerIsMoving = false;
         playerIsRunning = false;
-        playerDanceTriggered = false;
         return;
     }
 
@@ -845,7 +816,6 @@ void processInput(GLFWwindow* window)
 
         playerIsMoving = false;
         playerIsRunning = false;
-        playerDanceTriggered = false;
         return;
     }
 
@@ -914,18 +884,10 @@ void processInput(GLFWwindow* window)
 
         playerIsMoving = false;
         playerIsRunning = false;
-        playerDanceTriggered = false;
         return;
     }
 
     if (gameState.gameFinished || gameState.playerDied)
-    {
-        playerIsMoving = false;
-        playerIsRunning = false;
-        return;
-    }
-
-    if (playerIsDancing)
     {
         playerIsMoving = false;
         playerIsRunning = false;
@@ -2014,7 +1976,7 @@ void drawOxygenTerminalPanel(Shader& hudShader, unsigned int quadVAO)
         lineY += 34.0f;
     }
 
-    const std::string hint = "ESC CLOSE";
+    const std::string hint = "ESC - CLOSE";
     const float hintPixel = 1.9f;
     drawTextHUD(
         hudShader,
@@ -2362,12 +2324,6 @@ int main()
         true
     );
 
-    AnimatedCharacter danceCharacter(
-        std::string(PROJECT_ROOT) + "/assets/animation/character/chicken_dance.glb",
-        astronautTexture,
-        false
-    );
-
     AnimatedCharacter deathCharacter(
         std::string(PROJECT_ROOT) + "/assets/animation/character/dying.glb",
         astronautTexture,
@@ -2380,8 +2336,6 @@ int main()
         std::cerr << "Walk character failed: " << walkCharacter.getError() << "\n";
     if (!runCharacter.isLoaded())
         std::cerr << "Run character failed: " << runCharacter.getError() << "\n";
-    if (!danceCharacter.isLoaded())
-        std::cerr << "Dance character failed: " << danceCharacter.getError() << "\n";
     if (!deathCharacter.isLoaded())
         std::cerr << "Death character failed: " << deathCharacter.getError() << "\n";
 
@@ -2463,16 +2417,6 @@ int main()
     glEnableVertexAttribArray(0);
     glBindVertexArray(0);
 
-    unsigned int debugLineVAO = 0;
-    unsigned int debugLineVBO = 0;
-    glGenVertexArrays(1, &debugLineVAO);
-    glGenBuffers(1, &debugLineVBO);
-    glBindVertexArray(debugLineVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, debugLineVBO);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    glBindVertexArray(0);
-
     auto drawCube = [&](glm::vec3 position, glm::vec3 scale, glm::vec3 color, float rotationY = 0.0f)
         {
             shader.use();
@@ -2487,143 +2431,6 @@ int main()
 
             glBindVertexArray(VAO);
             glDrawArrays(GL_TRIANGLES, 0, 36);
-        };
-
-    auto drawDebugLines = [&](const std::vector<glm::vec3>& vertices, glm::vec3 color)
-        {
-            if (vertices.empty())
-                return;
-
-            shader.use();
-            shader.setMat4("model", glm::mat4(1.0f));
-            shader.setVec3("objectColor", color);
-
-            glBindVertexArray(debugLineVAO);
-            glBindBuffer(GL_ARRAY_BUFFER, debugLineVBO);
-            glBufferData(
-                GL_ARRAY_BUFFER,
-                vertices.size() * sizeof(glm::vec3),
-                vertices.data(),
-                GL_DYNAMIC_DRAW
-            );
-            glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size()));
-            glBindVertexArray(0);
-        };
-
-    auto drawDebugBox = [&](const BoxCollider& box, glm::vec3 color)
-        {
-            const glm::vec3 min = box.center - box.halfSize;
-            const glm::vec3 max = box.center + box.halfSize;
-            const glm::vec3 corners[8] = {
-                { min.x, min.y, min.z },
-                { max.x, min.y, min.z },
-                { max.x, min.y, max.z },
-                { min.x, min.y, max.z },
-                { min.x, max.y, min.z },
-                { max.x, max.y, min.z },
-                { max.x, max.y, max.z },
-                { min.x, max.y, max.z }
-            };
-            const int edges[24] = {
-                0, 1, 1, 2, 2, 3, 3, 0,
-                4, 5, 5, 6, 6, 7, 7, 4,
-                0, 4, 1, 5, 2, 6, 3, 7
-            };
-
-            std::vector<glm::vec3> vertices;
-            vertices.reserve(24);
-            for (int index : edges)
-                vertices.push_back(corners[index]);
-
-            drawDebugLines(vertices, color);
-        };
-
-    auto drawDebugVerticalCylinder = [&](glm::vec3 center, float radius, float halfHeight, glm::vec3 color)
-        {
-            constexpr int kSegments = 32;
-            const float bottomY = center.y - halfHeight;
-            const float topY = center.y + halfHeight;
-            std::vector<glm::vec3> vertices;
-            vertices.reserve(kSegments * 6);
-
-            for (int i = 0; i < kSegments; ++i)
-            {
-                const float angleA = glm::two_pi<float>() * static_cast<float>(i) / static_cast<float>(kSegments);
-                const float angleB = glm::two_pi<float>() * static_cast<float>(i + 1) / static_cast<float>(kSegments);
-                const glm::vec3 bottomA(center.x + std::cos(angleA) * radius, bottomY, center.z + std::sin(angleA) * radius);
-                const glm::vec3 bottomB(center.x + std::cos(angleB) * radius, bottomY, center.z + std::sin(angleB) * radius);
-                const glm::vec3 topA(bottomA.x, topY, bottomA.z);
-                const glm::vec3 topB(bottomB.x, topY, bottomB.z);
-
-                vertices.push_back(bottomA);
-                vertices.push_back(bottomB);
-                vertices.push_back(topA);
-                vertices.push_back(topB);
-                if (i % 4 == 0)
-                {
-                    vertices.push_back(bottomA);
-                    vertices.push_back(topA);
-                }
-            }
-
-            drawDebugLines(vertices, color);
-        };
-
-    auto drawDebugHorizontalCylinder = [&](const HorizontalCylinderCollider& cylinder, glm::vec3 color)
-        {
-            constexpr int kSegments = 32;
-            const glm::vec3 axis = glm::normalize(glm::vec3(cylinder.axisXZ.x, 0.0f, cylinder.axisXZ.z));
-            const glm::vec3 side = glm::normalize(glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), axis));
-            const glm::vec3 up(0.0f, 1.0f, 0.0f);
-            const glm::vec3 endA = cylinder.center - axis * cylinder.halfLength;
-            const glm::vec3 endB = cylinder.center + axis * cylinder.halfLength;
-            std::vector<glm::vec3> vertices;
-            vertices.reserve(kSegments * 6);
-
-            for (int i = 0; i < kSegments; ++i)
-            {
-                const float angleA = glm::two_pi<float>() * static_cast<float>(i) / static_cast<float>(kSegments);
-                const float angleB = glm::two_pi<float>() * static_cast<float>(i + 1) / static_cast<float>(kSegments);
-                const glm::vec3 ringA0 = side * (std::cos(angleA) * cylinder.radius) + up * (std::sin(angleA) * cylinder.radius);
-                const glm::vec3 ringA1 = side * (std::cos(angleB) * cylinder.radius) + up * (std::sin(angleB) * cylinder.radius);
-                const glm::vec3 a0 = endA + ringA0;
-                const glm::vec3 a1 = endA + ringA1;
-                const glm::vec3 b0 = endB + ringA0;
-                const glm::vec3 b1 = endB + ringA1;
-
-                vertices.push_back(a0);
-                vertices.push_back(a1);
-                vertices.push_back(b0);
-                vertices.push_back(b1);
-                if (i % 4 == 0)
-                {
-                    vertices.push_back(a0);
-                    vertices.push_back(b0);
-                }
-            }
-
-            drawDebugLines(vertices, color);
-        };
-
-    auto drawCollisionDebug = [&]()
-        {
-            if (!showCollisionDebug)
-                return;
-
-            glDisable(GL_DEPTH_TEST);
-            glLineWidth(2.0f);
-
-            for (const auto& box : world.colliders)
-                drawDebugBox(box, glm::vec3(1.0f, 0.35f, 0.20f));
-            for (const auto& circle : world.circleColliders)
-                drawDebugVerticalCylinder(circle.center + glm::vec3(0.0f, 1.0f, 0.0f), circle.radius, 1.0f, glm::vec3(0.25f, 0.9f, 1.0f));
-            for (const auto& cylinder : world.cylinderColliders)
-                drawDebugVerticalCylinder(cylinder.center, cylinder.radius, cylinder.halfHeight, glm::vec3(0.2f, 1.0f, 0.35f));
-            for (const auto& cylinder : world.horizontalCylinderColliders)
-                drawDebugHorizontalCylinder(cylinder, glm::vec3(1.0f, 0.95f, 0.15f));
-
-            glLineWidth(1.0f);
-            glEnable(GL_DEPTH_TEST);
         };
 
     const glm::vec3 oxygenPipeBodyColor(0.75f, 0.78f, 0.94f);
@@ -2707,37 +2514,26 @@ int main()
         if (!oxygenAnimatedPipes[i]->isLoaded())
             std::cerr << "Oxygen animated pipe failed: " << oxygenAnimatedPipes[i]->getError() << "\n";
     }
-    TestRoomScene testRoomScene = createTestRoomScene();
+    SpaceStationScene spaceStationScene = createSpaceStationScene();
 
-    world.buildDefaultRoom();
+    world.resetInteractables();
     world.setGameState(&gameState);
 
-    if (kTemplateRoomTestMode)
-    {
-        configureTestRoomWorld(world, testRoomScene, gameState.powerFixed, gameState.controlUnlocked);
-        playerPos = testRoomScene.playerStart;
-    }
+    configureSpaceStationWorld(world, spaceStationScene, gameState.powerFixed, gameState.controlUnlocked);
+    playerPos = spaceStationScene.playerStart;
 
-    bool winPrinted = false;
-    bool testRoomPowerFixedState = gameState.powerFixed;
-    bool testRoomControlUnlockedState = gameState.controlUnlocked;
+    bool previousPowerFixedState = gameState.powerFixed;
+    bool previousControlUnlockedState = gameState.controlUnlocked;
     PlayerAnimationState currentAnimationState = PlayerAnimationState::Idle;
     std::array<bool, GameState::kOxygenValveCount> previousOxygenValveStates = gameState.oxygenValvesOpened;
     auto restartGame = [&]()
     {
         gameState = GameState{};
-        world.buildDefaultRoom();
+        world.resetInteractables();
         world.setGameState(&gameState);
 
-        if (kTemplateRoomTestMode)
-        {
-            configureTestRoomWorld(world, testRoomScene, gameState.powerFixed, gameState.controlUnlocked);
-            playerPos = testRoomScene.playerStart;
-        }
-        else
-        {
-            playerPos = glm::vec3(0.0f, 0.0f, 0.0f);
-        }
+        configureSpaceStationWorld(world, spaceStationScene, gameState.powerFixed, gameState.controlUnlocked);
+        playerPos = spaceStationScene.playerStart;
 
         playerYaw = 90.0f;
         cameraYaw = -90.0f;
@@ -2757,8 +2553,6 @@ int main()
 
         playerIsMoving = false;
         playerIsRunning = false;
-        playerDanceTriggered = false;
-        playerIsDancing = false;
         deathAnimationTriggered = false;
         deathAnimationFinished = false;
         footstepTimer = 0.0f;
@@ -2782,7 +2576,6 @@ int main()
         heavyBreathingPlaying = false;
 
         ePressedLastFrame = false;
-        onePressedLastFrame = false;
         enterPressedLastFrame = false;
         spacePressedLastFrame = false;
         backspacePressedLastFrame = false;
@@ -2796,15 +2589,13 @@ int main()
 
         oxygenAnimatedPipeStarted.fill(false);
         previousOxygenValveStates = gameState.oxygenValvesOpened;
-        winPrinted = false;
-        testRoomPowerFixedState = gameState.powerFixed;
-        testRoomControlUnlockedState = gameState.controlUnlocked;
+        previousPowerFixedState = gameState.powerFixed;
+        previousControlUnlockedState = gameState.controlUnlocked;
         currentAnimationState = PlayerAnimationState::Idle;
         idleCharacter.update(0.0f, true);
 
         gameStarted = true;
         startHeavyBreathingLoop();
-        std::cout << "Game restarted\n";
     };
 
     while (!glfwWindowShouldClose(window))
@@ -2836,7 +2627,6 @@ int main()
                 subtitleQueue.clear();
                 currentSubtitle.clear();
                 subtitleTimer = 0.0f;
-                std::cout << "Game started\n";
             }
             else
             {
@@ -2877,12 +2667,6 @@ int main()
                 deathAnimationFinished = false;
             }
         }
-        else if (playerDanceTriggered)
-        {
-            currentAnimationState = PlayerAnimationState::Dance;
-            danceCharacter.update(0.0f, true);
-        }
-
         PlayerAnimationState desiredAnimationState = PlayerAnimationState::Idle;
         if (gameState.playerDied && deathAnimationTriggered)
             desiredAnimationState = PlayerAnimationState::Die;
@@ -2896,7 +2680,6 @@ int main()
             idleCharacter,
             walkCharacter,
             runCharacter,
-            danceCharacter,
             deathCharacter);
 
         if (currentAnimationState == PlayerAnimationState::Die)
@@ -2904,23 +2687,14 @@ int main()
             deathCharacter.update(deltaTime);
             deathAnimationFinished = deathCharacter.isFinished();
         }
-        else if (currentAnimationState == PlayerAnimationState::Dance)
-        {
-            danceCharacter.update(deltaTime);
-            if (danceCharacter.isFinished())
-                currentAnimationState = desiredAnimationState;
-        }
         else
-        {
             currentAnimationState = desiredAnimationState;
-        }
 
         AnimatedCharacter* activeCharacter = getCharacterForState(
             currentAnimationState,
             idleCharacter,
             walkCharacter,
             runCharacter,
-            danceCharacter,
             deathCharacter);
 
         if (activeCharacter != previousActiveCharacter &&
@@ -2933,11 +2707,9 @@ int main()
         }
 
         if (activeCharacter &&
-            currentAnimationState != PlayerAnimationState::Dance &&
             currentAnimationState != PlayerAnimationState::Die)
             activeCharacter->update(deltaTime);
 
-        playerIsDancing = (currentAnimationState == PlayerAnimationState::Dance);
         updateInteractPrompt();
         handleInteraction(window);
         for (int valveIndex = 0; valveIndex < GameState::kOxygenValveCount; ++valveIndex)
@@ -2961,13 +2733,12 @@ int main()
             }
         }
 
-        if (kTemplateRoomTestMode &&
-            (testRoomPowerFixedState != gameState.powerFixed ||
-             testRoomControlUnlockedState != gameState.controlUnlocked))
+        if (previousPowerFixedState != gameState.powerFixed ||
+            previousControlUnlockedState != gameState.controlUnlocked)
         {
-            configureTestRoomWorld(world, testRoomScene, gameState.powerFixed, gameState.controlUnlocked);
-            testRoomPowerFixedState = gameState.powerFixed;
-            testRoomControlUnlockedState = gameState.controlUnlocked;
+            configureSpaceStationWorld(world, spaceStationScene, gameState.powerFixed, gameState.controlUnlocked);
+            previousPowerFixedState = gameState.powerFixed;
+            previousControlUnlockedState = gameState.controlUnlocked;
         }
         updateStoryEvents();
         updateSubtitles();
@@ -2984,20 +2755,12 @@ int main()
             {
                 Room& room = world.rooms[newRoom];
 
-                std::cout << "Entered: " << room.name << std::endl;
 
                 if (!room.visited)
                 {
                     room.visited = true;
-                    std::cout << "First time in " << room.name << std::endl;
                 }
             }
-        }
-
-        if (gameState.gameFinished && !gameState.playerDied && !winPrinted)
-        {
-            std::cout << "YOU WIN\n";
-            winPrinted = true;
         }
 
         glm::vec3 cameraForward3D = getCameraForward3D();
@@ -3038,128 +2801,121 @@ int main()
         const float pulse = 0.55f + 0.45f * std::sin(currentFrame * 4.5f);
         const float flicker = 0.65f + 0.35f * std::sin(currentFrame * 18.0f);
 
-        if (kTemplateRoomTestMode)
+        for (const auto& roomPlacement : spaceStationScene.roomPlacements)
+            drawStaticModel(roomLarge, roomPlacement);
+        for (const auto& corridorPlacement : spaceStationScene.corridorPlacements)
+            drawStaticModel(corridor, corridorPlacement);
+        for (const auto& gatePlacement : spaceStationScene.gatePlacements)
+            drawStaticModel(gate, gatePlacement);
+        for (const auto& gateDoorPlacement : spaceStationScene.gateDoorPlacements)
+            drawStaticModel(gateDoor, gateDoorPlacement);
+        for (const auto& powerUnlockGatePlacement : spaceStationScene.powerUnlockGatePlacements)
         {
-            for (const auto& roomPlacement : testRoomScene.roomPlacements)
-                drawStaticModel(roomLarge, roomPlacement);
-            for (const auto& corridorPlacement : testRoomScene.corridorPlacements)
-                drawStaticModel(corridor, corridorPlacement);
-            for (const auto& gatePlacement : testRoomScene.gatePlacements)
-                drawStaticModel(gate, gatePlacement);
-            for (const auto& gateDoorPlacement : testRoomScene.gateDoorPlacements)
-                drawStaticModel(gateDoor, gateDoorPlacement);
-            for (const auto& powerUnlockGatePlacement : testRoomScene.powerUnlockGatePlacements)
-            {
-                if (gameState.powerFixed)
-                    drawStaticModel(gate, powerUnlockGatePlacement);
-                else
-                    drawStaticModel(gateDoor, powerUnlockGatePlacement);
-            }
-            for (const auto& controlUnlockGatePlacement : testRoomScene.controlUnlockGatePlacements)
-            {
-                if (gameState.controlUnlocked)
-                    drawStaticModel(gate, controlUnlockGatePlacement);
-                else
-                    drawStaticModel(gateDoor, controlUnlockGatePlacement, false, true);
-            }
-            for (const auto& bedPlacement : testRoomScene.bedPlacements)
-                drawStaticModel(bedDouble, bedPlacement);
-            for (const auto& bedCoverPlacement : testRoomScene.bedCoverPlacements)
-                drawStaticModel(bedDoubleCover, bedCoverPlacement);
-            for (const auto& placement : testRoomScene.storageContainerPlacements)
-                drawStaticModel(container, placement);
-            for (const auto& placement : testRoomScene.storageContainerFlatPlacements)
-                drawStaticModel(containerFlat, placement);
-            for (const auto& placement : testRoomScene.storageContainerFlatOpenPlacements)
-                drawStaticModel(containerFlatOpen, placement);
-            for (const auto& placement : testRoomScene.storageContainerTallPlacements)
-                drawStaticModel(containerTall, placement);
-            for (const auto& placement : testRoomScene.storageContainerWidePlacements)
-                drawStaticModel(containerWide, placement);
-            for (const auto& placement : testRoomScene.powerCabinetPlacements)
-                drawStaticModel(cabinet, placement);
-            for (const auto& placement : testRoomScene.powerComputerSystemPlacements)
-                drawStaticModel(computerSystem, placement);
-            drawStaticModel(powerPosterPowerOff, testRoomScene.powerPosterPowerOffPlacement);
-            drawStaticModel(powerPosterMaintenance, testRoomScene.powerPosterMaintenancePlacement);
-            drawStaticModel(powerPosterCalibration, testRoomScene.powerPosterCalibrationPlacement);
-            drawStaticModel(oxygenPoster, testRoomScene.oxygenPosterPlacement);
-            drawStaticModel(computer, testRoomScene.oxygenComputerPlacement);
-            for (const auto& placement : testRoomScene.oxygenTankPlacements)
-                drawStaticModel(oxygenTank, placement);
-            for (const auto& placement : testRoomScene.oxygenPlantPlacements)
-                drawStaticModel(pottedPlant, placement);
-            for (int valveIndex = 0; valveIndex < static_cast<int>(testRoomScene.oxygenValvePlacements.size()); ++valveIndex)
-            {
-                ModelPlacement valvePlacement = testRoomScene.oxygenValvePlacements[valveIndex];
-                const bool hasAnimatedPipe =
-                    oxygenAnimatedPipes[valveIndex] &&
-                    oxygenAnimatedPipes[valveIndex]->isLoaded();
-                const bool animationStarted = oxygenAnimatedPipeStarted[valveIndex];
-                const bool animationFinished =
-                    animationStarted &&
-                    oxygenAnimatedPipes[valveIndex] &&
-                    oxygenAnimatedPipes[valveIndex]->isFinished();
-
-                if (gameState.playerDied)
-                {
-                    valvePlacement.color = glm::vec3(1.0f, 0.18f, 0.18f);
-                }
-
-                if (!animationStarted)
-                {
-                    drawStaticModel(oxygenPipeUp, valvePlacement, true);
-                }
-                else if (hasAnimatedPipe && !animationFinished)
-                {
-                    glm::mat4 oxygenPipeBaseMatrix = glm::mat4(1.0f);
-                    oxygenPipeBaseMatrix = glm::translate(oxygenPipeBaseMatrix, valvePlacement.position);
-                    oxygenPipeBaseMatrix = glm::rotate(oxygenPipeBaseMatrix, glm::radians(valvePlacement.rotationY), glm::vec3(0.0f, 1.0f, 0.0f));
-                    oxygenPipeBaseMatrix = glm::scale(oxygenPipeBaseMatrix, valvePlacement.scale);
-                    oxygenAnimatedPipes[valveIndex]->draw(
-                        characterShader,
-                        view,
-                        projection,
-                        oxygenPipeBaseMatrix,
-                        valvePlacement.color
-                    );
-                }
-                else
-                {
-                    StaticModel& oxygenPipeModel = gameState.oxygenValvesOpened[valveIndex]
-                        ? oxygenPipeDown
-                        : oxygenPipeUp;
-                    drawStaticModel(oxygenPipeModel, valvePlacement, true);
-                }
-            }
-            for (const auto& labTableDisplayPlacement : testRoomScene.labTableDisplayPlacements)
-                drawStaticModel(tableDisplay, labTableDisplayPlacement);
-            for (const auto& placement : testRoomScene.labSmallTableDisplayPlacements)
-                drawStaticModel(tableDisplaySmall, placement);
-            for (const auto& placement : testRoomScene.labTableInsetPlacements)
-                drawStaticModel(tableInset, placement);
-            drawStaticModel(computer, testRoomScene.labComputerPlacement);
-            drawStaticModel(computerScreen, testRoomScene.labComputerScreenPlacement);
-            drawStaticModel(skipRocks, testRoomScene.labSkipRocksPlacement);
-            drawStaticModel(rocks, testRoomScene.labRocksPlacement);
-            drawStaticModel(rocks, testRoomScene.labCenterRocksPlacement);
-            drawStaticModel(labPoster, testRoomScene.labPosterPlacement);
-            drawStaticModel(computerScreen, testRoomScene.controlTerminalPlacement);
-            for (const auto& placement : testRoomScene.controlComputerPlacements)
-                drawStaticModel(computer, placement);
-            for (const auto& placement : testRoomScene.controlComputerWidePlacements)
-                drawStaticModel(computerWide, placement);
-            for (const auto& placement : testRoomScene.controlDisplayWallWidePlacements)
-                drawStaticModel(displayWallWide, placement);
-
-            ModelPlacement powerBoxPlacement = testRoomScene.powerConsolePlacement;
-            powerBoxPlacement.color = glm::vec3(1.0f);
-            if (currentObjectiveId == "power_console")
-                powerBoxPlacement.color = glm::min(powerBoxPlacement.color + glm::vec3(0.10f + 0.16f * pulse), glm::vec3(1.25f));
-            drawStaticModel(powerBox, powerBoxPlacement);
+            if (gameState.powerFixed)
+                drawStaticModel(gate, powerUnlockGatePlacement);
+            else
+                drawStaticModel(gateDoor, powerUnlockGatePlacement);
         }
+        for (const auto& controlUnlockGatePlacement : spaceStationScene.controlUnlockGatePlacements)
+        {
+            if (gameState.controlUnlocked)
+                drawStaticModel(gate, controlUnlockGatePlacement);
+            else
+                drawStaticModel(gateDoor, controlUnlockGatePlacement, false, true);
+        }
+        for (const auto& bedPlacement : spaceStationScene.bedPlacements)
+            drawStaticModel(bedDouble, bedPlacement);
+        for (const auto& bedCoverPlacement : spaceStationScene.bedCoverPlacements)
+            drawStaticModel(bedDoubleCover, bedCoverPlacement);
+        for (const auto& placement : spaceStationScene.storageContainerPlacements)
+            drawStaticModel(container, placement);
+        for (const auto& placement : spaceStationScene.storageContainerFlatPlacements)
+            drawStaticModel(containerFlat, placement);
+        for (const auto& placement : spaceStationScene.storageContainerFlatOpenPlacements)
+            drawStaticModel(containerFlatOpen, placement);
+        for (const auto& placement : spaceStationScene.storageContainerTallPlacements)
+            drawStaticModel(containerTall, placement);
+        for (const auto& placement : spaceStationScene.storageContainerWidePlacements)
+            drawStaticModel(containerWide, placement);
+        for (const auto& placement : spaceStationScene.powerCabinetPlacements)
+            drawStaticModel(cabinet, placement);
+        for (const auto& placement : spaceStationScene.powerComputerSystemPlacements)
+            drawStaticModel(computerSystem, placement);
+        drawStaticModel(powerPosterPowerOff, spaceStationScene.powerPosterPowerOffPlacement);
+        drawStaticModel(powerPosterMaintenance, spaceStationScene.powerPosterMaintenancePlacement);
+        drawStaticModel(powerPosterCalibration, spaceStationScene.powerPosterCalibrationPlacement);
+        drawStaticModel(oxygenPoster, spaceStationScene.oxygenPosterPlacement);
+        drawStaticModel(computer, spaceStationScene.oxygenComputerPlacement);
+        for (const auto& placement : spaceStationScene.oxygenTankPlacements)
+            drawStaticModel(oxygenTank, placement);
+        for (const auto& placement : spaceStationScene.oxygenPlantPlacements)
+            drawStaticModel(pottedPlant, placement);
+        for (int valveIndex = 0; valveIndex < static_cast<int>(spaceStationScene.oxygenValvePlacements.size()); ++valveIndex)
+        {
+            ModelPlacement valvePlacement = spaceStationScene.oxygenValvePlacements[valveIndex];
+            const bool hasAnimatedPipe =
+                oxygenAnimatedPipes[valveIndex] &&
+                oxygenAnimatedPipes[valveIndex]->isLoaded();
+            const bool animationStarted = oxygenAnimatedPipeStarted[valveIndex];
+            const bool animationFinished =
+                animationStarted &&
+                oxygenAnimatedPipes[valveIndex] &&
+                oxygenAnimatedPipes[valveIndex]->isFinished();
 
-        drawCollisionDebug();
+            if (gameState.playerDied)
+                valvePlacement.color = glm::vec3(1.0f, 0.18f, 0.18f);
+
+            if (!animationStarted)
+            {
+                drawStaticModel(oxygenPipeUp, valvePlacement, true);
+            }
+            else if (hasAnimatedPipe && !animationFinished)
+            {
+                glm::mat4 oxygenPipeBaseMatrix = glm::mat4(1.0f);
+                oxygenPipeBaseMatrix = glm::translate(oxygenPipeBaseMatrix, valvePlacement.position);
+                oxygenPipeBaseMatrix = glm::rotate(oxygenPipeBaseMatrix, glm::radians(valvePlacement.rotationY), glm::vec3(0.0f, 1.0f, 0.0f));
+                oxygenPipeBaseMatrix = glm::scale(oxygenPipeBaseMatrix, valvePlacement.scale);
+                oxygenAnimatedPipes[valveIndex]->draw(
+                    characterShader,
+                    view,
+                    projection,
+                    oxygenPipeBaseMatrix,
+                    valvePlacement.color
+                );
+            }
+            else
+            {
+                StaticModel& oxygenPipeModel = gameState.oxygenValvesOpened[valveIndex]
+                    ? oxygenPipeDown
+                    : oxygenPipeUp;
+                drawStaticModel(oxygenPipeModel, valvePlacement, true);
+            }
+        }
+        for (const auto& labTableDisplayPlacement : spaceStationScene.labTableDisplayPlacements)
+            drawStaticModel(tableDisplay, labTableDisplayPlacement);
+        for (const auto& placement : spaceStationScene.labSmallTableDisplayPlacements)
+            drawStaticModel(tableDisplaySmall, placement);
+        for (const auto& placement : spaceStationScene.labTableInsetPlacements)
+            drawStaticModel(tableInset, placement);
+        drawStaticModel(computer, spaceStationScene.labComputerPlacement);
+        drawStaticModel(computerScreen, spaceStationScene.labComputerScreenPlacement);
+        drawStaticModel(skipRocks, spaceStationScene.labSkipRocksPlacement);
+        drawStaticModel(rocks, spaceStationScene.labRocksPlacement);
+        drawStaticModel(rocks, spaceStationScene.labCenterRocksPlacement);
+        drawStaticModel(labPoster, spaceStationScene.labPosterPlacement);
+        drawStaticModel(computerScreen, spaceStationScene.controlTerminalPlacement);
+        for (const auto& placement : spaceStationScene.controlComputerPlacements)
+            drawStaticModel(computer, placement);
+        for (const auto& placement : spaceStationScene.controlComputerWidePlacements)
+            drawStaticModel(computerWide, placement);
+        for (const auto& placement : spaceStationScene.controlDisplayWallWidePlacements)
+            drawStaticModel(displayWallWide, placement);
+
+        ModelPlacement powerBoxPlacement = spaceStationScene.powerConsolePlacement;
+        powerBoxPlacement.color = glm::vec3(1.0f);
+        if (currentObjectiveId == "power_console")
+            powerBoxPlacement.color = glm::min(powerBoxPlacement.color + glm::vec3(0.10f + 0.16f * pulse), glm::vec3(1.25f));
+        drawStaticModel(powerBox, powerBoxPlacement);
 
         if (activeCharacter)
         {

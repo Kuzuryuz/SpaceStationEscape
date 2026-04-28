@@ -1,10 +1,9 @@
-#include "world/TestRoomScene.h"
+#include "world/SpaceStationScene.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <iostream>
 
 namespace
 {
@@ -131,9 +130,9 @@ namespace
     }
 }
 
-TestRoomScene createTestRoomScene()
+SpaceStationScene createSpaceStationScene()
 {
-    TestRoomScene scene;
+    SpaceStationScene scene;
     const glm::vec3 oxygenRoomCenter = getOxygenRoomCenter();
     const glm::vec3 storageRoomCenter = getStorageRoomCenter();
     const glm::vec3 controlRoomCenter = getControlRoomCenter();
@@ -436,7 +435,7 @@ TestRoomScene createTestRoomScene()
     return scene;
 }
 
-void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool powerFixed, bool controlUnlocked)
+void configureSpaceStationWorld(World& world, const SpaceStationScene& scene, bool powerFixed, bool controlUnlocked)
 {
     const glm::vec3 oxygenRoomCenter = getOxygenRoomCenter();
     const glm::vec3 storageRoomCenter = getStorageRoomCenter();
@@ -891,18 +890,4 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         else
             addGateDoorCollision(controlUnlockGatePlacement);
     }
-
-    std::cout << "Room-large test enabled"
-        << " | boxColliders=" << world.colliders.size()
-        << " | circleColliders=" << world.circleColliders.size()
-        << " | cylinderColliders=" << world.cylinderColliders.size()
-        << " | horizontalCylinderColliders=" << world.horizontalCylinderColliders.size()
-        << " | rooms=" << scene.roomPlacements.size()
-        << " | corridors=" << scene.corridorPlacements.size()
-        << " | gates=" << scene.gatePlacements.size()
-        << " | gateDoors=" << scene.gateDoorPlacements.size()
-        << " | powerUnlockGates=" << scene.powerUnlockGatePlacements.size()
-        << " | controlUnlockGates=" << scene.controlUnlockGatePlacements.size()
-        << " | beds=" << scene.bedPlacements.size()
-        << "\n";
 }

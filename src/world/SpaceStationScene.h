@@ -6,8 +6,6 @@
 
 #include "world/World.h"
 
-static constexpr bool kTemplateRoomTestMode = true;
-
 struct ModelPlacement
 {
     glm::vec3 position{ 0.0f };
@@ -18,7 +16,7 @@ struct ModelPlacement
     float rotationZ = 0.0f;
 };
 
-struct TestRoomScene
+struct SpaceStationScene
 {
     std::vector<ModelPlacement> roomPlacements;
     std::vector<ModelPlacement> corridorPlacements;
@@ -62,5 +60,5 @@ struct TestRoomScene
     glm::vec3 playerStart{ 0.0f, 0.0f, 6.0f };
 };
 
-TestRoomScene createTestRoomScene();
-void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool powerFixed, bool controlUnlocked);
+SpaceStationScene createSpaceStationScene();
+void configureSpaceStationWorld(World& world, const SpaceStationScene& scene, bool powerFixed, bool controlUnlocked);
