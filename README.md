@@ -85,7 +85,7 @@ out/build/x64-release/SpaceStationEscape.exe
 For a playable release package, place the executable next to the runtime asset folders:
 
 ```text
-SpaceStationEscape-release/
+SpaceStationEscape/
   SpaceStationEscape.exe
   assets/
   shaders/
