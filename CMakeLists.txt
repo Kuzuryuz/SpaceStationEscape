@@ -69,7 +69,7 @@ target_include_directories(SpaceStationEscape PRIVATE
 )
 
 target_compile_definitions(SpaceStationEscape PRIVATE
-    PROJECT_ROOT="${CMAKE_SOURCE_DIR}"
+    PROJECT_ROOT="."
 )
 
 target_link_libraries(SpaceStationEscape PRIVATE
