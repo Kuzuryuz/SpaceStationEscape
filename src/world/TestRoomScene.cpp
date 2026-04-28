@@ -78,7 +78,15 @@ namespace
     const glm::vec3 kLabPosterScale(5.0f, 5.0f, 1.0f);
     constexpr float kOxygenValveHeight = -0.05f;
     constexpr float kOxygenValveScale = 2.5f;
-    constexpr float kOxygenValveSpacing = 1.25f;
+    constexpr float kOxygenValveWallOffset = 7.1f;
+    constexpr float kOxygenValveZSpacing = 1.55f;
+    constexpr float kOxygenComputerScale = 3.0f;
+    constexpr float kOxygenComputerScreenScale = 2.35f;
+    constexpr float kOxygenComputerInteractOffset = 2.0f;
+    constexpr float kOxygenTankScale = 0.95f;
+    constexpr float kOxygenPlantScale = 2.75f;
+    const glm::vec3 kOxygenComputerColor(0.48f, 0.32f, 0.95f);
+    const glm::vec3 kOxygenComputerScreenColor(0.34f, 0.88f, 1.0f);
     const glm::vec3 kPowerConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kPowerConsoleColor(0.20f, 0.55f, 0.95f);
     const glm::vec3 kStorageNoteScale(0.9f, 0.9f, 0.9f);
@@ -191,16 +199,40 @@ TestRoomScene createTestRoomScene()
         0.0f,
         kOxygenConsoleColor
     };
+    scene.oxygenComputerPlacement = {
+        oxygenRoomCenter + glm::vec3(kRoomLargeHalfExtent - 1.35f, 0.0f, kRoomLargeHalfExtent - 2.45f),
+        glm::vec3(kOxygenComputerScale),
+        -135.0f,
+        glm::vec3(0.34f, 0.92f, 0.56f)
+    };
+    scene.oxygenComputerScreenPlacement = {
+        scene.oxygenComputerPlacement.position + rotateOffsetY(glm::vec3(0.0f, 0.18f, -0.92f), scene.oxygenComputerPlacement.rotationY),
+        glm::vec3(kOxygenComputerScreenScale * 0.88f),
+        scene.oxygenComputerPlacement.rotationY,
+        glm::vec3(0.18f, 0.98f, 0.42f)
+    };
     scene.oxygenValvePlacements = {
-        { oxygenRoomCenter + glm::vec3(-kOxygenValveSpacing, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(1.0f, 0.30f, 0.24f) },
-        { oxygenRoomCenter + glm::vec3(0.0f, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(0.20f, 0.58f, 1.0f) },
-        { oxygenRoomCenter + glm::vec3(kOxygenValveSpacing, kOxygenValveHeight, 1.15f), glm::vec3(kOxygenValveScale), 0.0f, glm::vec3(0.25f, 0.95f, 0.38f) }
+        { oxygenRoomCenter + glm::vec3(kOxygenValveWallOffset, kOxygenValveHeight, -kOxygenValveZSpacing), glm::vec3(kOxygenValveScale), 90.0f, glm::vec3(1.0f, 0.30f, 0.24f) },
+        { oxygenRoomCenter + glm::vec3(kOxygenValveWallOffset, kOxygenValveHeight, 0.0f), glm::vec3(kOxygenValveScale), 90.0f, glm::vec3(0.20f, 0.58f, 1.0f) },
+        { oxygenRoomCenter + glm::vec3(kOxygenValveWallOffset, kOxygenValveHeight, kOxygenValveZSpacing), glm::vec3(kOxygenValveScale), 90.0f, glm::vec3(0.25f, 0.95f, 0.38f) }
     };
     scene.oxygenPosterPlacement = {
         oxygenRoomCenter + glm::vec3(-kRoomLargeHalfExtent + 0.01f, 2.5f, 4.0f),
         kOxygenPosterScale,
         90.0f,
         glm::vec3(1.0f)
+    };
+    scene.oxygenTankPlacements = {
+        { oxygenRoomCenter + glm::vec3(-kRoomLargeHalfExtent + 1.85f, 0.0f, -kRoomLargeHalfExtent + 1.85f), glm::vec3(kOxygenTankScale), 8.0f, glm::vec3(1.0f) },
+        { oxygenRoomCenter + glm::vec3(-kRoomLargeHalfExtent + 2.55f, 0.0f, -kRoomLargeHalfExtent + 2.15f), glm::vec3(kOxygenTankScale), -16.0f, glm::vec3(1.0f) },
+        { oxygenRoomCenter + glm::vec3(-kRoomLargeHalfExtent + 1.75f, 0.0f, -kRoomLargeHalfExtent + 3.0f), glm::vec3(kOxygenTankScale), 24.0f, glm::vec3(1.0f) },
+        { oxygenRoomCenter + glm::vec3(-kRoomLargeHalfExtent + 2.35f, 0.34f, -kRoomLargeHalfExtent + 2.95f), glm::vec3(kOxygenTankScale), 180.0f, glm::vec3(1.0f), 0.0f, 90.0f },
+        { oxygenRoomCenter + glm::vec3(-kRoomLargeHalfExtent + 1.95f, 0.34f, kRoomLargeHalfExtent - 2.15f), glm::vec3(kOxygenTankScale), 180.0f, glm::vec3(1.0f), 0.0f, 90.0f }
+    };
+    scene.oxygenPlantPlacements = {
+        { oxygenRoomCenter + glm::vec3(kRoomLargeHalfExtent - 2.05f, 0.0f, -kRoomLargeHalfExtent + 2.10f), glm::vec3(kOxygenPlantScale * 1.22f), 18.0f, glm::vec3(1.0f) },
+        { oxygenRoomCenter + glm::vec3(kRoomLargeHalfExtent - 2.70f, 0.0f, -kRoomLargeHalfExtent + 2.68f), glm::vec3(kOxygenPlantScale * 1.42f), -14.0f, glm::vec3(1.0f) },
+        { oxygenRoomCenter + glm::vec3(kRoomLargeHalfExtent - 2.12f, 0.0f, -kRoomLargeHalfExtent + 3.25f), glm::vec3(kOxygenPlantScale * 1.28f), 24.0f, glm::vec3(1.0f) }
     };
 
     scene.powerConsolePlacement = {
@@ -667,6 +699,41 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         });
     };
 
+    auto addOxygenTankCollider = [&](const ModelPlacement& placement)
+    {
+        const float scale = placement.scale.x;
+        const float tankRadius = 0.42f * scale;
+        const bool isFallen = std::abs(placement.rotationZ) > 45.0f;
+        if (isFallen)
+        {
+            const glm::vec3 axis = rotateOffsetY(glm::vec3(1.0f, 0.0f, 0.0f), placement.rotationY);
+            world.horizontalCylinderColliders.push_back({
+                placement.position + glm::vec3(0.0f, tankRadius, 0.0f),
+                glm::vec3(axis.x, 0.0f, axis.z),
+                1.55f * scale,
+                tankRadius
+            });
+        }
+        else
+        {
+            world.cylinderColliders.push_back({
+                placement.position + glm::vec3(0.0f, 1.68f * scale, 0.0f),
+                tankRadius,
+                1.62f * scale
+            });
+        }
+    };
+
+    auto addOxygenPlantCollider = [&](const ModelPlacement& placement)
+    {
+        const float scale = placement.scale.x;
+        world.cylinderColliders.push_back({
+            placement.position + glm::vec3(0.0f, 0.18f * scale, 0.0f),
+            0.12f * scale,
+            0.18f * scale
+        });
+    };
+
     for (const auto& placement : scene.storageContainerPlacements)
         addCylinderPropCollider(placement, kStorageContainerHalfSize);
     for (const auto& placement : scene.storageContainerFlatPlacements)
@@ -677,6 +744,10 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         addCylinderPropCollider(placement, kStorageContainerTallHalfSize);
     for (const auto& placement : scene.storageContainerWidePlacements)
         addCylinderPropCollider(placement, kStorageContainerWideHalfSize);
+    for (const auto& placement : scene.oxygenTankPlacements)
+        addOxygenTankCollider(placement);
+    for (const auto& placement : scene.oxygenPlantPlacements)
+        addOxygenPlantCollider(placement);
 
     addAxisAlignedRotatedCollider(scene.labSkipRocksPlacement, kLabSkipRocksHalfSize);
     addAxisAlignedRotatedCollider(scene.labComputerPlacement, kLabComputerHalfSize);
@@ -701,6 +772,7 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
             glm::vec3(0.82f, 0.95f, 0.82f)
         });
     }
+    addAxisAlignedRotatedCollider(scene.oxygenComputerPlacement, kControlComputerHalfSize);
     addAxisAlignedRotatedCollider(scene.controlTerminalPlacement, kControlComputerScreenHalfSize);
     for (const auto& placement : scene.controlComputerPlacements)
         addAxisAlignedRotatedCollider(placement, kControlComputerHalfSize);
@@ -715,6 +787,15 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
                 scene.oxygenConsolePlacement.position.x,
                 0.0f,
                 scene.oxygenConsolePlacement.position.z);
+        }
+        else if (interactable.name == "oxygen_terminal")
+        {
+            const glm::vec3 computerInteractOffset =
+                rotateOffsetY(glm::vec3(0.0f, 0.0f, kOxygenComputerInteractOffset), scene.oxygenComputerPlacement.rotationY);
+            interactable.pos = glm::vec3(
+                scene.oxygenComputerPlacement.position.x + computerInteractOffset.x,
+                0.0f,
+                scene.oxygenComputerPlacement.position.z + computerInteractOffset.z);
         }
         else if (interactable.name.rfind("oxygen_valve_", 0) == 0)
         {

@@ -5,6 +5,7 @@ in vec3 FragPos;
 in vec3 Normal;
 in vec2 TexCoord;
 in float PartMask;
+in vec3 MaterialColor;
 
 uniform sampler2D texture_diffuse1;
 uniform int useTexture;
@@ -18,7 +19,7 @@ uniform vec3 ambientColor;
 
 void main()
 {
-    vec3 baseColor = tintColor;
+    vec3 baseColor = MaterialColor * tintColor;
     if (usePartColors == 1)
         baseColor = PartMask > 0.5 ? partAccentColor : partBaseColor;
     else if (useTexture == 1)

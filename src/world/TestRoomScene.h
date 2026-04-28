@@ -14,6 +14,8 @@ struct ModelPlacement
     glm::vec3 scale{ 1.0f };
     float rotationY = 0.0f;
     glm::vec3 color{ 1.0f };
+    float rotationX = 0.0f;
+    float rotationZ = 0.0f;
 };
 
 struct TestRoomScene
@@ -41,8 +43,12 @@ struct TestRoomScene
     ModelPlacement labCenterRocksPlacement;
     ModelPlacement labPosterPlacement;
     ModelPlacement oxygenConsolePlacement;
+    ModelPlacement oxygenComputerPlacement;
+    ModelPlacement oxygenComputerScreenPlacement;
     std::vector<ModelPlacement> oxygenValvePlacements;
     ModelPlacement oxygenPosterPlacement;
+    std::vector<ModelPlacement> oxygenTankPlacements;
+    std::vector<ModelPlacement> oxygenPlantPlacements;
     ModelPlacement powerConsolePlacement;
     ModelPlacement powerPosterPowerOffPlacement;
     ModelPlacement powerPosterMaintenancePlacement;

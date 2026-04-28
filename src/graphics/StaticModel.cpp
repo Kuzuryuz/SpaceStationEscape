@@ -285,12 +285,20 @@ namespace
             const std::string nodeName = node->mName.C_Str();
             const float partMask = (isRingPartName(meshName) || isRingPartName(nodeName)) ? 1.0f : 0.0f;
             const bool hasUv = mesh->HasTextureCoords(0);
+            glm::vec3 materialColor(1.0f);
+            if (mesh->mMaterialIndex < scene->mNumMaterials)
+            {
+                aiColor3D diffuseColor(1.0f, 1.0f, 1.0f);
+                if (scene->mMaterials[mesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor) == AI_SUCCESS)
+                    materialColor = glm::vec3(diffuseColor.r, diffuseColor.g, diffuseColor.b);
+            }
 
             for (unsigned int i = 0; i < mesh->mNumVertices; ++i)
             {
                 const aiVector3D& position = mesh->mVertices[i];
                 StaticModel::Vertex vertex;
                 vertex.position = glm::vec3(position.x, position.y, position.z);
+                vertex.materialColor = materialColor;
 
                 if (mesh->HasNormals())
                 {
@@ -499,6 +507,9 @@ void StaticModel::upload()
 
     glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void*>(offsetof(Vertex, partMask)));
     glEnableVertexAttribArray(3);
+
+    glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void*>(offsetof(Vertex, materialColor)));
+    glEnableVertexAttribArray(4);
 
     glBindVertexArray(0);
 }

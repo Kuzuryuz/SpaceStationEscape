@@ -487,6 +487,31 @@ void World::buildDefaultRoom()
         });
     }
 
+    interactables.push_back({
+        "oxygen_terminal",
+        glm::vec3(2.2f, 0.0f, -10.0f),
+        1.8f,
+        [this]()
+        {
+            if (!gameState)
+                return;
+
+            if (gameState->playerDied)
+            {
+                std::cout << "AI: Terminal offline. Crew vitals lost\n";
+                return;
+            }
+
+            if (!gameState->oxygenFixed)
+            {
+                std::cout << "AI: Oxygen malfunction. Reactivate by rotating the pipes in order\n";
+                return;
+            }
+
+            std::cout << "AI: Oxygen normal. Monitoring nominal\n";
+        }
+    });
+
       interactables.push_back({
           "power_console",
           glm::vec3(8.0f, 0.0f, 0.0f),

@@ -120,6 +120,7 @@ bool deathAnimationFinished = false;
 bool controlCodePanelOpen = false;
 bool controlCodeRejected = false;
 std::string controlCodeInput = "";
+bool oxygenTerminalPanelOpen = false;
 bool labStabilizerPanelOpen = false;
 bool labStabilizerRejected = false;
 std::array<int, 3> labStabilizerValues{ 0, 0, 0 };
@@ -690,6 +691,11 @@ void processInput(GLFWwindow* window)
             controlCodeInput.clear();
             playCloseSound();
         }
+        else if (oxygenTerminalPanelOpen)
+        {
+            oxygenTerminalPanelOpen = false;
+            playCloseSound();
+        }
         else if (labStabilizerPanelOpen)
         {
             labStabilizerPanelOpen = false;
@@ -762,6 +768,14 @@ void processInput(GLFWwindow* window)
         }
         enterPressedLastFrame = enterPressedNow;
 
+        playerIsMoving = false;
+        playerIsRunning = false;
+        playerDanceTriggered = false;
+        return;
+    }
+
+    if (oxygenTerminalPanelOpen)
+    {
         playerIsMoving = false;
         playerIsRunning = false;
         playerDanceTriggered = false;
@@ -1100,6 +1114,7 @@ void updateInteractPrompt()
     nearestInteractableIndex = world.getNearestInteractableIndex(playerPos);
     showInteractPrompt =
         !controlCodePanelOpen &&
+        !oxygenTerminalPanelOpen &&
         !labStabilizerPanelOpen &&
         !powerWirePanelOpen &&
         (nearestInteractableIndex != -1) &&
@@ -1111,7 +1126,7 @@ void handleInteraction(GLFWwindow* window)
 {
     bool ePressedNow = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
 
-    if (controlCodePanelOpen || labStabilizerPanelOpen || powerWirePanelOpen)
+    if (controlCodePanelOpen || oxygenTerminalPanelOpen || labStabilizerPanelOpen || powerWirePanelOpen)
     {
         ePressedLastFrame = ePressedNow;
         return;
@@ -1119,8 +1134,13 @@ void handleInteraction(GLFWwindow* window)
 
     if (ePressedNow && !ePressedLastFrame && !gameState.gameFinished && !gameState.playerDied)
     {
+        const std::string interactableName =
+            nearestInteractableIndex != -1
+            ? world.interactables[nearestInteractableIndex].name
+            : "";
+
         if (nearestInteractableIndex != -1 &&
-            world.interactables[nearestInteractableIndex].name == "control_door" &&
+            interactableName == "control_door" &&
             !gameState.controlUnlocked)
         {
             controlCodePanelOpen = true;
@@ -1132,7 +1152,7 @@ void handleInteraction(GLFWwindow* window)
         }
 
         if (nearestInteractableIndex != -1 &&
-            world.interactables[nearestInteractableIndex].name == "lab_decoder" &&
+            interactableName == "lab_decoder" &&
             !gameState.hasCode)
         {
             labStabilizerPanelOpen = true;
@@ -1143,11 +1163,19 @@ void handleInteraction(GLFWwindow* window)
         }
 
         if (nearestInteractableIndex != -1 &&
-            world.interactables[nearestInteractableIndex].name == "power_console" &&
+            interactableName == "power_console" &&
             gameState.oxygenFixed &&
             !gameState.powerFixed)
         {
             openPowerWirePanel();
+            ePressedLastFrame = ePressedNow;
+            return;
+        }
+
+        if (interactableName == "oxygen_terminal")
+        {
+            oxygenTerminalPanelOpen = true;
+            playOpenSound();
             ePressedLastFrame = ePressedNow;
             return;
         }
@@ -1897,6 +1925,88 @@ void drawLabStabilizerPanel(Shader& hudShader, unsigned int quadVAO)
     glBindVertexArray(0);
 }
 
+void drawOxygenTerminalPanel(Shader& hudShader, unsigned int quadVAO)
+{
+    if (!oxygenTerminalPanelOpen)
+        return;
+
+    hudShader.use();
+    hudShader.setVec2("screenSize", glm::vec2((float)screenWidth, (float)screenHeight));
+    glBindVertexArray(quadVAO);
+
+    const float panelW = 760.0f;
+    const float panelH = 310.0f;
+    const float panelX = (screenWidth - panelW) * 0.5f;
+    const float panelY = (screenHeight - panelH) * 0.5f;
+
+    drawRectHUD(hudShader, quadVAO, 0.0f, 0.0f, (float)screenWidth, (float)screenHeight, glm::vec3(0.02f, 0.03f, 0.06f));
+    drawRectHUD(hudShader, quadVAO, panelX + 6.0f, panelY + 6.0f, panelW, panelH, glm::vec3(0.01f, 0.01f, 0.03f));
+    drawRectHUD(hudShader, quadVAO, panelX, panelY, panelW, panelH, glm::vec3(0.08f, 0.10f, 0.16f));
+    drawRectHUD(hudShader, quadVAO, panelX + 4.0f, panelY + 4.0f, panelW - 8.0f, panelH - 8.0f, glm::vec3(0.09f, 0.12f, 0.20f));
+    drawRectHUD(hudShader, quadVAO, panelX + 26.0f, panelY + 68.0f, panelW - 52.0f, 2.0f, glm::vec3(0.36f, 0.90f, 1.0f));
+
+    const std::string title = "OXYGEN TERMINAL";
+    const float titlePixel = 3.5f;
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        title,
+        panelX + 28.0f,
+        panelY + 24.0f,
+        titlePixel,
+        glm::vec3(0.60f, 0.92f, 1.0f)
+    );
+
+    const std::string statusLabel = "STATUS";
+    const std::string statusValue = gameState.oxygenFixed ? "OXYGEN NORMAL" : "OXYGEN MALFUNCTION";
+    const glm::vec3 statusColor = gameState.oxygenFixed
+        ? glm::vec3(0.42f, 1.0f, 0.62f)
+        : glm::vec3(1.0f, 0.44f, 0.44f);
+    drawTextHUD(hudShader, quadVAO, statusLabel, panelX + 28.0f, panelY + 88.0f, 2.4f, glm::vec3(0.72f, 0.82f, 0.95f));
+    drawTextHUD(hudShader, quadVAO, statusValue, panelX + 28.0f, panelY + 122.0f, 3.0f, statusColor);
+
+    const std::vector<std::string> bodyLines = gameState.oxygenFixed
+        ? std::vector<std::string>{
+            "LIFE SUPPORT FLOW STABLE",
+            "PRESSURE AND MIXTURE WITHIN SAFE RANGE",
+            "NO FURTHER ACTION REQUIRED"
+        }
+        : std::vector<std::string>{
+            "PLEASE REACTIVATE THE SYSTEM",
+            "ROTATE THE PIPES IN THE CORRECT ORDER",
+            "TO RESTORE OXYGEN FLOW"
+        };
+
+    float lineY = panelY + 174.0f;
+    for (const auto& line : bodyLines)
+    {
+        drawTextHUD(
+            hudShader,
+            quadVAO,
+            line,
+            panelX + 28.0f,
+            lineY,
+            2.15f,
+            glm::vec3(0.90f, 0.95f, 1.0f)
+        );
+        lineY += 34.0f;
+    }
+
+    const std::string hint = "ESC CLOSE";
+    const float hintPixel = 1.9f;
+    drawTextHUD(
+        hudShader,
+        quadVAO,
+        hint,
+        panelX + panelW - getTextWidth(hint, hintPixel, hintPixel) - 28.0f,
+        panelY + panelH - 40.0f,
+        hintPixel,
+        glm::vec3(0.58f, 0.68f, 0.82f)
+    );
+
+    glBindVertexArray(0);
+}
+
 void drawSubtitle(Shader& hudShader, unsigned int quadVAO)
 {
     if (currentSubtitle.empty())
@@ -2507,7 +2617,9 @@ int main()
 
             glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, placement.position);
+            model = glm::rotate(model, glm::radians(placement.rotationX), glm::vec3(1.0f, 0.0f, 0.0f));
             model = glm::rotate(model, glm::radians(placement.rotationY), glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::rotate(model, glm::radians(placement.rotationZ), glm::vec3(0.0f, 0.0f, 1.0f));
             model = glm::scale(model, placement.scale);
 
             staticModelShader.setMat4("model", model);
@@ -2551,6 +2663,8 @@ int main()
     StaticModel powerPosterCalibration(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/poster_calibration.obj");
     StaticModel oxygenPipeUp(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/pipe-up.obj");
     StaticModel oxygenPipeDown(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/pipe-down.obj");
+    StaticModel oxygenTank(std::string(PROJECT_ROOT) + "/assets/models/AdditionalAssets/oxygen_tank.obj");
+    StaticModel pottedPlant(std::string(PROJECT_ROOT) + "/assets/models/AdditionalAssets/pottedPlant.obj");
     const std::string puzzleTexture =
         std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/Textures/colormap.png";
     const std::string oxygenAnimationPath =
@@ -2611,6 +2725,7 @@ int main()
         controlCodePanelOpen = false;
         controlCodeRejected = false;
         controlCodeInput.clear();
+        oxygenTerminalPanelOpen = false;
         labStabilizerPanelOpen = false;
         labStabilizerRejected = false;
         labStabilizerValues = { 0, 0, 0 };
@@ -2939,6 +3054,11 @@ int main()
             drawStaticModel(powerPosterMaintenance, testRoomScene.powerPosterMaintenancePlacement);
             drawStaticModel(powerPosterCalibration, testRoomScene.powerPosterCalibrationPlacement);
             drawStaticModel(oxygenPoster, testRoomScene.oxygenPosterPlacement);
+            drawStaticModel(computer, testRoomScene.oxygenComputerPlacement);
+            for (const auto& placement : testRoomScene.oxygenTankPlacements)
+                drawStaticModel(oxygenTank, placement);
+            for (const auto& placement : testRoomScene.oxygenPlantPlacements)
+                drawStaticModel(pottedPlant, placement);
             for (int valveIndex = 0; valveIndex < static_cast<int>(testRoomScene.oxygenValvePlacements.size()); ++valveIndex)
             {
                 ModelPlacement valvePlacement = testRoomScene.oxygenValvePlacements[valveIndex];
@@ -3146,6 +3266,7 @@ int main()
         drawInteractPrompt(hudShader, quadVAO);
         drawSubtitle(hudShader, quadVAO);
         drawControlCodePanel(hudShader, quadVAO);
+        drawOxygenTerminalPanel(hudShader, quadVAO);
         drawPowerWirePanel(hudShader, quadVAO);
         drawLabStabilizerPanel(hudShader, quadVAO);
         drawEndingOverlay(hudShader, quadVAO);

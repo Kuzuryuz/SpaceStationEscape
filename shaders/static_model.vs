@@ -3,11 +3,13 @@ layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec2 aTexCoord;
 layout (location = 3) in float aPartMask;
+layout (location = 4) in vec3 aMaterialColor;
 
 out vec3 FragPos;
 out vec3 Normal;
 out vec2 TexCoord;
 out float PartMask;
+out vec3 MaterialColor;
 
 uniform mat4 model;
 uniform mat4 view;
@@ -20,5 +22,6 @@ void main()
     Normal = mat3(transpose(inverse(model))) * aNormal;
     TexCoord = aTexCoord;
     PartMask = aPartMask;
+    MaterialColor = aMaterialColor;
     gl_Position = projection * view * worldPos;
 }
