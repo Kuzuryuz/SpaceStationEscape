@@ -123,6 +123,7 @@ Main source folders:
   - [Modular Space Kit](https://kenney.nl/assets/modular-space-kit)
   - [Furniture Kit](https://kenney.nl/assets/furniture-kit)
 - KayKit Restaurant Bits: [kaylousberg.itch.io/restaurant-bits](https://kaylousberg.itch.io/restaurant-bits)
+- Mixamo: [Character animations and rigging](https://www.mixamo.com/)
 
 ### Audio
 
