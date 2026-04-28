@@ -44,6 +44,8 @@ static const std::string kWinClipId = "win";
 static const std::string kLoseClipId = "lose";
 static const std::string kPowerShutdownClipId = "power_shutdown";
 static const std::string kBeepClipId = "beep";
+static const std::string kGasClipId = "gas";
+static const std::string kTurnValveClipId = "turn_valve";
 static const std::string kSpaceStationLoopId = "space_station_bg";
 static const std::string kHeavyBreathingLoopId = "heavy_breathing_loop";
 static const std::array<std::string, 5> kFootstepConcreteClipIds{
@@ -307,6 +309,18 @@ void playBeepSound()
 {
     constexpr float kBeepVolume = 0.45f;
     audio.playClip(kBeepClipId, kBeepVolume);
+}
+
+void playGasSound()
+{
+    constexpr float kGasVolume = 0.85f;
+    audio.playClip(kGasClipId, kGasVolume);
+}
+
+void playTurnValveSound()
+{
+    constexpr float kTurnValveVolume = 0.8f;
+    audio.playClip(kTurnValveClipId, kTurnValveVolume);
 }
 
 void startHeavyBreathingLoop()
@@ -1012,6 +1026,7 @@ void updateStoryEvents()
     if (gameState.oxygenFixed && !seenOxygenFixed)
     {
         seenOxygenFixed = true;
+        playGasSound();
         stopHeavyBreathingLoop();
         interruptSubtitles();
         queueSubtitle("OXYGEN FLOW STABILIZED", 2.8f);
@@ -2285,6 +2300,8 @@ int main()
         audio.preloadClip(kLoseClipId, std::string(PROJECT_ROOT) + "/assets/audio/lose.wav", 1);
         audio.preloadClip(kPowerShutdownClipId, std::string(PROJECT_ROOT) + "/assets/audio/power_shutdown.wav", 1);
         audio.preloadClip(kBeepClipId, std::string(PROJECT_ROOT) + "/assets/audio/beep.wav", 6);
+        audio.preloadClip(kGasClipId, std::string(PROJECT_ROOT) + "/assets/audio/gas.wav", 4);
+        audio.preloadClip(kTurnValveClipId, std::string(PROJECT_ROOT) + "/assets/audio/turn_valve.wav", 4);
         for (size_t i = 0; i < kFootstepConcreteClipIds.size(); ++i)
         {
             const std::string path =
@@ -2923,6 +2940,7 @@ int main()
             if (gameState.oxygenValvesOpened[valveIndex] && !previousOxygenValveStates[valveIndex])
             {
                 oxygenAnimatedPipeStarted[valveIndex] = true;
+                playTurnValveSound();
                 if (oxygenAnimatedPipes[valveIndex] && oxygenAnimatedPipes[valveIndex]->isLoaded())
                     oxygenAnimatedPipes[valveIndex]->update(0.0f, true);
             }
