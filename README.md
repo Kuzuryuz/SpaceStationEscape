@@ -10,13 +10,23 @@ The game focuses on exploring connected rooms, solving station repair puzzles, a
 
 ## Screenshots
 
-TODO: Add screenshots here.
+**Menu screen**
+<img width="1920" height="1080" alt="menu" src="https://github.com/user-attachments/assets/31454b1d-f97d-4b2e-9be0-1179b981f824" />
 
-```md
-![Main room](screenshots/main-room.png)
-![Oxygen puzzle](screenshots/oxygen-puzzle.png)
-![Power puzzle](screenshots/power-puzzle.png)
-```
+**Main room**
+<img width="1920" height="1080" alt="main room" src="https://github.com/user-attachments/assets/efc52ac8-5a80-4dbe-80f0-4b28166bbd1c" />
+
+**Oxygen room**
+<img width="1920" height="1080" alt="oxygen room" src="https://github.com/user-attachments/assets/60284ef6-2d36-4466-90c7-463beed9a224" />
+
+**Power puzzle**
+<img width="1920" height="1080" alt="power puzzle" src="https://github.com/user-attachments/assets/6928f243-c005-4970-b57b-8af19716db2b" />
+
+**Lab puzzle**
+<img width="1920" height="1080" alt="lab puzzle" src="https://github.com/user-attachments/assets/130df2de-a281-4f80-885c-b1ae372109e8" />
+
+**Control room code puzzle**
+<img width="1920" height="1080" alt="control code puzzle" src="https://github.com/user-attachments/assets/3d5781b5-3824-4a99-a310-5fd8b55a706c" />
 
 ## Demo Video
 
