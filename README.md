@@ -104,7 +104,7 @@ Main source folders:
 
 ## Attribution
 
-TODO: Fill in exact asset/source links before submission.
+### Libraries
 
 - OpenGL - Graphics API
 - GLFW - Window creation and input
@@ -112,7 +112,22 @@ TODO: Fill in exact asset/source links before submission.
 - GLM - Mathematics library
 - Assimp - Model and animation loading
 - miniaudio - Audio playback
-- 3D character model and animations: **TODO: add source/author/license**
-- Space station models and props: **TODO: add source/author/license**
-- Puzzle posters/textures: **TODO: add source/author/license**
-- Sound effects and background audio: **TODO: add source/author/license**
+
+### 3D Models and Assets
+
+- Player model: [Little Astronaut on Sketchfab](https://sketchfab.com/3d-models/little-astronaut-12184db58b1f44c987537b5607c32098)
+- Oxygen tank model: [Oxygen Gas on Sketchfab](https://sketchfab.com/3d-models/oxygen-gas-39600badf9244ce7875dc22ddc38fc98)
+- Power box model: [Power Box 01 4K on Sketchfab](https://sketchfab.com/3d-models/power-box-01-4k-1b6b1bb376a844c7a958553df25bea84)
+- Kenney assets:
+  - [Space Station Kit](https://kenney.nl/assets/space-station-kit)
+  - [Modular Space Kit](https://kenney.nl/assets/modular-space-kit)
+  - [Furniture Kit](https://kenney.nl/assets/furniture-kit)
+- KayKit Restaurant Bits: [kaylousberg.itch.io/restaurant-bits](https://kaylousberg.itch.io/restaurant-bits)
+
+### Audio
+
+- Gas sound effect: [Pixabay - Film Special Effects Old Iron Gate Creaking](https://pixabay.com/sound-effects/film-special-effects-old-iron-gate-creaking-192019/)
+- Open power box sound effect: [Pixabay - Film Special Effects Old Iron Gate Creaking](https://pixabay.com/sound-effects/film-special-effects-old-iron-gate-creaking-192019/)
+- OpenGameArt - [Little Robot Sound Factory Sci-Fi Library](https://opengameart.org/content/sci-fi-sound-effects-library)
+- [Kenney audio assets](https://kenney.nl/assets/category:Audio)
+
