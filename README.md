@@ -6,7 +6,7 @@ The game focuses on exploring connected rooms, solving station repair puzzles, a
 
 ## Itch.io Links
 
-**TODO: add itch.io project link**
+https://peeppeep0505.itch.io/space-station-escape
 
 ## Screenshots
 
