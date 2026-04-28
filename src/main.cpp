@@ -35,6 +35,7 @@ static const std::string kArrowDownClipId = "arrow_down";
 static const std::string kConfirmationClipId = "confirmation";
 static const std::string kErrorClipId = "error";
 static const std::string kOpenClipId = "open";
+static const std::string kOpenPowerBoxClipId = "open_power_box";
 static const std::string kCloseClipId = "close";
 static const std::string kCutClipId = "cut";
 static const std::string kDoorOpenClipId = "door_open";
@@ -187,6 +188,8 @@ float subtitleTimer = 0.0f;
 
 bool introQueued = false;
 bool seenOxygenFixed = false;
+bool oxygenFixedGasPending = false;
+float oxygenFixedGasTimer = 0.0f;
 bool seenPowerFixed = false;
 bool seenFoundNote = false;
 bool seenHasCode = false;
@@ -255,6 +258,12 @@ void playOpenSound()
 {
     constexpr float kOpenVolume = 0.4f;
     audio.playClip(kOpenClipId, kOpenVolume);
+}
+
+void playOpenPowerBoxSound()
+{
+    constexpr float kOpenPowerBoxVolume = 0.75f;
+    audio.playClip(kOpenPowerBoxClipId, kOpenPowerBoxVolume);
 }
 
 void playCloseSound()
@@ -456,6 +465,7 @@ void completeLabStabilization()
 void openPowerWirePanel()
 {
     powerWirePanelOpen = true;
+    playOpenPowerBoxSound();
     powerWireResolving = false;
     powerWireCutWasCorrect = false;
     powerWireCut.fill(false);
@@ -1026,13 +1036,25 @@ void updateStoryEvents()
     if (gameState.oxygenFixed && !seenOxygenFixed)
     {
         seenOxygenFixed = true;
-        playGasSound();
+        oxygenFixedGasPending = true;
+        oxygenFixedGasTimer = 1.0f;
         stopHeavyBreathingLoop();
         interruptSubtitles();
         queueSubtitle("OXYGEN FLOW STABILIZED", 2.8f);
         queueSubtitle("RUNNING DAMAGE DIAGNOSTICS...", 2.8f);
         queueSubtitle(kMainPowerDownSubtitle, 3.2f);
         queueSubtitle("......RESTORE....POWER....", 3.2f);
+    }
+
+    if (oxygenFixedGasPending)
+    {
+        oxygenFixedGasTimer -= deltaTime;
+        if (oxygenFixedGasTimer <= 0.0f)
+        {
+            oxygenFixedGasPending = false;
+            oxygenFixedGasTimer = 0.0f;
+            playGasSound();
+        }
     }
 
     if (gameState.powerFixed && !seenPowerFixed)
@@ -2291,6 +2313,7 @@ int main()
         audio.preloadClip(kConfirmationClipId, std::string(PROJECT_ROOT) + "/assets/audio/confirmation.wav", 4);
         audio.preloadClip(kErrorClipId, std::string(PROJECT_ROOT) + "/assets/audio/error.wav", 4);
         audio.preloadClip(kOpenClipId, std::string(PROJECT_ROOT) + "/assets/audio/open.wav", 4);
+        audio.preloadClip(kOpenPowerBoxClipId, std::string(PROJECT_ROOT) + "/assets/audio/open_power_box.wav", 2);
         audio.preloadClip(kCloseClipId, std::string(PROJECT_ROOT) + "/assets/audio/close.wav", 4);
         audio.preloadClip(kCutClipId, std::string(PROJECT_ROOT) + "/assets/audio/cut.wav", 4);
         audio.preloadClip(kDoorOpenClipId, std::string(PROJECT_ROOT) + "/assets/audio/door_open.wav", 2);
@@ -2766,6 +2789,8 @@ int main()
         subtitleTimer = 0.0f;
         introQueued = false;
         seenOxygenFixed = false;
+        oxygenFixedGasPending = false;
+        oxygenFixedGasTimer = 0.0f;
         seenPowerFixed = false;
         seenFoundNote = false;
         seenHasCode = false;
