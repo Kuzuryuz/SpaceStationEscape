@@ -30,7 +30,7 @@ The game focuses on exploring connected rooms, solving station repair puzzles, a
 
 ## Demo Video
 
-**TODO: add demo vdo**
+https://github.com/user-attachments/assets/3dd47463-fb55-4bfb-9de9-c6ed55bee8c8
 
 ## Gameplay
 
