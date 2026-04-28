@@ -2654,6 +2654,7 @@ int main()
     StaticModel rocks(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/rocks.obj");
     StaticModel computerScreen(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer-screen.obj");
     StaticModel computer(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer.obj");
+    StaticModel computerSystem(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer-system.obj");
     StaticModel computerWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/computer-wide.obj");
     StaticModel displayWallWide(std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/display-wall-wide.obj");
     StaticModel labPoster(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/poster_lab.obj");
@@ -2665,6 +2666,8 @@ int main()
     StaticModel oxygenPipeDown(std::string(PROJECT_ROOT) + "/assets/models/Puzzle/pipe-down.obj");
     StaticModel oxygenTank(std::string(PROJECT_ROOT) + "/assets/models/AdditionalAssets/oxygen_tank.obj");
     StaticModel pottedPlant(std::string(PROJECT_ROOT) + "/assets/models/AdditionalAssets/pottedPlant.obj");
+    StaticModel powerBox(std::string(PROJECT_ROOT) + "/assets/models/AdditionalAssets/power_box.obj");
+    StaticModel cabinet(std::string(PROJECT_ROOT) + "/assets/models/AdditionalAssets/cabinet.obj");
     const std::string puzzleTexture =
         std::string(PROJECT_ROOT) + "/assets/models/SpaceStationKit/Textures/colormap.png";
     const std::string oxygenAnimationPath =
@@ -3050,6 +3053,10 @@ int main()
                 drawStaticModel(containerTall, placement);
             for (const auto& placement : testRoomScene.storageContainerWidePlacements)
                 drawStaticModel(containerWide, placement);
+            for (const auto& placement : testRoomScene.powerCabinetPlacements)
+                drawStaticModel(cabinet, placement);
+            for (const auto& placement : testRoomScene.powerComputerSystemPlacements)
+                drawStaticModel(computerSystem, placement);
             drawStaticModel(powerPosterPowerOff, testRoomScene.powerPosterPowerOffPlacement);
             drawStaticModel(powerPosterMaintenance, testRoomScene.powerPosterMaintenancePlacement);
             drawStaticModel(powerPosterCalibration, testRoomScene.powerPosterCalibrationPlacement);
@@ -3131,10 +3138,13 @@ int main()
                 drawCube(placement.position, placement.scale, drawColor, placement.rotationY);
             };
 
-            glm::vec3 powerConsoleColor = gameState.powerFixed
-                ? glm::vec3(0.25f, 1.0f, 0.35f)
-                : testRoomScene.powerConsolePlacement.color;
-            drawInteractableCube("power_console", testRoomScene.powerConsolePlacement, powerConsoleColor);
+            ModelPlacement powerBoxPlacement = testRoomScene.powerConsolePlacement;
+            powerBoxPlacement.color = gameState.powerFixed
+                ? glm::vec3(0.76f, 1.10f, 0.82f)
+                : glm::vec3(1.0f);
+            if (currentObjectiveId == "power_console")
+                powerBoxPlacement.color = glm::min(powerBoxPlacement.color + glm::vec3(0.10f + 0.16f * pulse), glm::vec3(1.25f));
+            drawStaticModel(powerBox, powerBoxPlacement);
 
         }
         else

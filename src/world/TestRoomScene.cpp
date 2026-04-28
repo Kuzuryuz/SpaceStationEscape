@@ -89,6 +89,11 @@ namespace
     const glm::vec3 kOxygenComputerScreenColor(0.34f, 0.88f, 1.0f);
     const glm::vec3 kPowerConsoleScale(1.4f, 1.5f, 0.9f);
     const glm::vec3 kPowerConsoleColor(0.20f, 0.55f, 0.95f);
+    constexpr float kPowerCabinetScale = 1.34f;
+    const glm::vec3 kPowerCabinetHalfSize(1.38f, 1.38f, 0.78f);
+    constexpr float kPowerComputerScale = 2.8f;
+    const glm::vec3 kPowerComputerHalfSize(1.25f, 0.9f, 1.05f);
+    const glm::vec3 kPowerBoxWallHalfSize(1.45f, 1.05f, 0.42f);
     const glm::vec3 kStorageNoteScale(0.9f, 0.9f, 0.9f);
     const glm::vec3 kStorageNoteColor(0.80f, 0.48f, 0.20f);
     const glm::vec3 kControlTerminalColor(0.88f, 0.22f, 0.78f);
@@ -236,10 +241,17 @@ TestRoomScene createTestRoomScene()
     };
 
     scene.powerConsolePlacement = {
-        powerRoomCenter + glm::vec3(0.0f, 1.0f, 0.0f),
-        kPowerConsoleScale,
-        0.0f,
-        kPowerConsoleColor
+        powerRoomCenter + glm::vec3(-kRoomLargeHalfExtent + 0.34f, 1.55f, kRoomLargeHalfExtent - 2.05f),
+        glm::vec3(4.1f),
+        90.0f,
+        glm::vec3(0.95f, 0.98f, 1.18f)
+    };
+    scene.powerCabinetPlacements = {
+        { powerRoomCenter + glm::vec3(kRoomLargeHalfExtent - 2.55f, 0.0f, kRoomLargeHalfExtent - 1.55f), glm::vec3(kPowerCabinetScale), 180.0f, glm::vec3(1.0f) },
+        { powerRoomCenter + glm::vec3(kRoomLargeHalfExtent - 5.75f, 0.0f, kRoomLargeHalfExtent - 1.55f), glm::vec3(kPowerCabinetScale), 180.0f, glm::vec3(1.0f) }
+    };
+    scene.powerComputerSystemPlacements = {
+        { powerRoomCenter + glm::vec3(-kRoomLargeHalfExtent + 3.55f, 0.0f, kRoomLargeHalfExtent - 1.55f), glm::vec3(kPowerComputerScale), 180.0f, glm::vec3(0.86f, 0.90f, 0.96f) }
     };
     scene.powerPosterPowerOffPlacement = {
         powerRoomCenter + glm::vec3(-kRoomLargeHalfExtent + 0.01f, 2.35f, -3.4f),
@@ -761,10 +773,11 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         kLabRocksHalfSize
     });
 
-    world.colliders.push_back({
-        scene.powerConsolePlacement.position,
-        scene.powerConsolePlacement.scale * 0.5f
-    });
+    for (const auto& placement : scene.powerCabinetPlacements)
+        addAxisAlignedRotatedCollider(placement, kPowerCabinetHalfSize);
+    addAxisAlignedRotatedCollider(scene.powerConsolePlacement, kPowerBoxWallHalfSize);
+    for (const auto& placement : scene.powerComputerSystemPlacements)
+        addAxisAlignedRotatedCollider(placement, kPowerComputerHalfSize);
     for (const auto& placement : scene.oxygenValvePlacements)
     {
         world.colliders.push_back({
