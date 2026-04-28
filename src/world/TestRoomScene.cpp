@@ -49,7 +49,6 @@ namespace
     const glm::vec3 kLabSmallTableHalfSize(1.7f, kLabTableColliderHalfHeight, 1.45f);
     constexpr float kLabComputerScale = 3.2f;
     constexpr float kLabComputerScreenScale = 2.4f;
-    constexpr float kLabComputerSideOffset = 3.25f;
     constexpr float kLabComputerInteractOffset = 2.0f;
     constexpr float kLabComputerScreenSideSpacing = 2.2f;
     const glm::vec3 kLabComputerHalfSize(1.15f, 0.85f, 1.05f);
@@ -85,17 +84,13 @@ namespace
     constexpr float kOxygenComputerInteractOffset = 2.0f;
     constexpr float kOxygenTankScale = 0.95f;
     constexpr float kOxygenPlantScale = 2.75f;
-    const glm::vec3 kOxygenComputerColor(0.48f, 0.32f, 0.95f);
-    const glm::vec3 kOxygenComputerScreenColor(0.34f, 0.88f, 1.0f);
-    const glm::vec3 kPowerConsoleScale(1.4f, 1.5f, 0.9f);
-    const glm::vec3 kPowerConsoleColor(0.20f, 0.55f, 0.95f);
     constexpr float kPowerCabinetScale = 1.34f;
-    const glm::vec3 kPowerCabinetHalfSize(1.38f, 1.38f, 0.78f);
+    const glm::vec3 kPowerCabinetHalfSize(1.7f, 1.38f, 1.2f);
+    constexpr float kPowerCabinetColliderForwardOffset = 0.65f;
     constexpr float kPowerComputerScale = 2.8f;
-    const glm::vec3 kPowerComputerHalfSize(1.25f, 0.9f, 1.05f);
-    const glm::vec3 kPowerBoxWallHalfSize(1.45f, 1.05f, 0.42f);
-    const glm::vec3 kStorageNoteScale(0.9f, 0.9f, 0.9f);
-    const glm::vec3 kStorageNoteColor(0.80f, 0.48f, 0.20f);
+    const glm::vec3 kPowerComputerHalfSize(1.65f, 0.9f, 1.3f);
+    const glm::vec3 kPowerBoxWallHalfSize(1.0f, 1.05f, 0.6f);
+    constexpr float kPowerBoxColliderYOffset = -1.0f;
     const glm::vec3 kControlTerminalColor(0.88f, 0.22f, 0.78f);
 
     glm::vec3 rotateOffsetY(const glm::vec3& offset, float degrees)
@@ -520,7 +515,6 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
     world.circleColliders.clear();
     world.cylinderColliders.clear();
     world.horizontalCylinderColliders.clear();
-    world.doors.clear();
     world.rooms.clear();
     world.rooms.push_back({
         "Main Room",
@@ -714,15 +708,15 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
     auto addOxygenTankCollider = [&](const ModelPlacement& placement)
     {
         const float scale = placement.scale.x;
-        const float tankRadius = 0.42f * scale;
+        const float tankRadius = 0.6f * scale;
         const bool isFallen = std::abs(placement.rotationZ) > 45.0f;
         if (isFallen)
         {
             const glm::vec3 axis = rotateOffsetY(glm::vec3(1.0f, 0.0f, 0.0f), placement.rotationY);
             world.horizontalCylinderColliders.push_back({
-                placement.position + glm::vec3(0.0f, tankRadius, 0.0f),
+                placement.position + glm::vec3(1.6f, 0.0f, 0.0f),
                 glm::vec3(axis.x, 0.0f, axis.z),
-                1.55f * scale,
+                2.1f * scale,
                 tankRadius
             });
         }
@@ -730,7 +724,7 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         {
             world.cylinderColliders.push_back({
                 placement.position + glm::vec3(0.0f, 1.68f * scale, 0.0f),
-                tankRadius,
+                1.4f * tankRadius,
                 1.62f * scale
             });
         }
@@ -741,7 +735,7 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
         const float scale = placement.scale.x;
         world.cylinderColliders.push_back({
             placement.position + glm::vec3(0.0f, 0.18f * scale, 0.0f),
-            0.12f * scale,
+            0.18f * scale,
             0.18f * scale
         });
     };
@@ -774,8 +768,16 @@ void configureTestRoomWorld(World& world, const TestRoomScene& scene, bool power
     });
 
     for (const auto& placement : scene.powerCabinetPlacements)
-        addAxisAlignedRotatedCollider(placement, kPowerCabinetHalfSize);
-    addAxisAlignedRotatedCollider(scene.powerConsolePlacement, kPowerBoxWallHalfSize);
+    {
+        ModelPlacement colliderPlacement = placement;
+        colliderPlacement.position += rotateOffsetY(
+            glm::vec3(0.0f, 0.0f, kPowerCabinetColliderForwardOffset),
+            placement.rotationY);
+        addAxisAlignedRotatedCollider(colliderPlacement, kPowerCabinetHalfSize);
+    }
+    ModelPlacement powerBoxColliderPlacement = scene.powerConsolePlacement;
+    powerBoxColliderPlacement.position.y += kPowerBoxColliderYOffset;
+    addAxisAlignedRotatedCollider(powerBoxColliderPlacement, kPowerBoxWallHalfSize);
     for (const auto& placement : scene.powerComputerSystemPlacements)
         addAxisAlignedRotatedCollider(placement, kPowerComputerHalfSize);
     for (const auto& placement : scene.oxygenValvePlacements)

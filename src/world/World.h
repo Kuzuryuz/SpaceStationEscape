@@ -33,16 +33,6 @@ struct HorizontalCylinderCollider
     float radius = 0.0f;
 };
 
-struct WorldObject
-{
-    std::string id;
-    glm::vec3 pos;
-    glm::vec3 scale;
-    glm::vec3 color;
-    float rotationY = 0.0f;
-    bool hasCollision;
-};
-
 struct Room
 {
     std::string name;
@@ -59,33 +49,19 @@ struct Interactable
     std::function<void()> onInteract;
 };
 
-struct Door
-{
-    std::string name;
-    glm::vec3 center;
-    glm::vec3 halfSize;
-    glm::vec3 closedColor;
-    glm::vec3 openColor;
-    float rotationY = 0.0f;
-    bool open = false;
-};
-
 class World
 {
 public:
     GameState* gameState = nullptr;
 
-    std::vector<WorldObject> staticObjects;
     std::vector<BoxCollider> colliders;
     std::vector<CircleCollider> circleColliders;
     std::vector<CylinderCollider> cylinderColliders;
     std::vector<HorizontalCylinderCollider> horizontalCylinderColliders;
     std::vector<Room> rooms;
     std::vector<Interactable> interactables;
-    std::vector<Door> doors;
 
     void buildDefaultRoom();
-    void rebuildColliders();
 
     bool collidesWithWorld(const glm::vec3& testPos, float playerRadius) const;
     bool collidesWithCamera(const glm::vec3& cameraPos, float cameraRadius) const;
@@ -103,13 +79,6 @@ public:
 
 private:
     int findInteractableIndexByName(const std::string& name) const;
-    void addObject(const std::string& id, glm::vec3 pos, glm::vec3 scale, glm::vec3 color, bool hasCollision, float rotationY = 0.0f);
-    void addRoomFloor(const std::string& id, float minX, float maxX, float minZ, float maxZ, const glm::vec3& color);
-    void addHorizontalWallRun(const std::string& idPrefix, float startX, float endX, float z, const glm::vec3& color);
-    void addVerticalWallRun(const std::string& idPrefix, float x, float startZ, float endZ, const glm::vec3& color);
-    void addCornerPiece(const std::string& id, float x, float z, const glm::vec3& color);
-    void addDoor(const std::string& name, const glm::vec3& center, const glm::vec3& halfSize, float rotationY, bool open, const glm::vec3& closedColor, const glm::vec3& openColor);
-    Door* findDoor(const std::string& name);
     static bool intersectsCircleBoxXZ(const glm::vec3& circleCenter, float radius, const BoxCollider& box);
     static bool intersectsCircleCircleXZ(const glm::vec3& aCenter, float aRadius, const glm::vec3& bCenter, float bRadius);
 };
